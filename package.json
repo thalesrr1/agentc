@@ -1,0 +1,26 @@
+{
+  "name": "agentc-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AgentC — Central local-first de gerenciamento visual de tarefas e orquestração de desenvolvimento com IA",
+  "workspaces": [
+    "server",
+    "client"
+  ],
+  "scripts": {
+    "dev:server": "npm run dev --workspace=server",
+    "dev:client": "npm run dev --workspace=client",
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "build:server": "npm run build --workspace=server",
+    "build:client": "npm run build --workspace=client",
+    "build": "npm run build:server && npm run build:client",
+    "mcp": "node server/dist/mcp/cli.js",
+    "test:server": "npm run test --workspace=server"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

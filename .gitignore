@@ -1,0 +1,62 @@
+# Dependências
+node_modules/
+.pnp
+.pnp.js
+
+# Builds e artefatos de compilação
+dist/
+dist-ssr/
+build/
+*.tsbuildinfo
+*.exe
+
+# Bancos de dados locais (SQLite) e arquivos de transação (WAL/SHM)
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# Execuções e logs do AgentC (mantém definições de skills, ignora runs de agentes)
+.agent/runs/*
+!.agent/runs/.gitignore
+
+# Diretórios e artefatos de testes temporários
+temp-test*
+temp-mcp-test*
+temp/
+coverage/
+.nyc_output/
+
+# Logs do sistema e gerenciadores de pacote
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Variáveis de ambiente e segredos
+.env
+.env.production
+.env.development
+.env.local
+.env.*.local
+
+# Caches de ferramentas e empacotadores
+.vite/
+.eslintcache
+.cache/
+
+# Arquivos do sistema operacional e IDEs
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
