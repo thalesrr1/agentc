@@ -50,6 +50,8 @@ export const TaskSpecViewer: React.FC<TaskSpecViewerProps> = ({ task, onTaskUpda
   const [editVariant, setEditVariant] = useState(task.variant || '');
   const [editThinking, setEditThinking] = useState(Boolean(task.thinking));
   const [editFeature, setEditFeature] = useState(task.feature || '');
+  const [editOrderIndex, setEditOrderIndex] = useState<number>(typeof task.order_index === 'number' ? task.order_index : 0);
+  const [editVerifyCommand, setEditVerifyCommand] = useState(task.verify_command || '');
 
   // Catálogo de modelos carregado diretamente das configurações do motor de CLIs
   const [catalog, setCatalog] = useState<Record<RunnerType, string[]>>({
@@ -140,6 +142,8 @@ export const TaskSpecViewer: React.FC<TaskSpecViewerProps> = ({ task, onTaskUpda
 
     setEditThinking(Boolean(task.thinking));
     setEditFeature(task.feature || '');
+    setEditOrderIndex(typeof task.order_index === 'number' ? task.order_index : 0);
+    setEditVerifyCommand(task.verify_command || '');
 
     const parsed = parsePromptAndGuardrails(task.task_markdown || '');
     setEditPrompt(parsed.prompt);
@@ -172,6 +176,8 @@ export const TaskSpecViewer: React.FC<TaskSpecViewerProps> = ({ task, onTaskUpda
 
     setEditThinking(Boolean(task.thinking));
     setEditFeature(task.feature || '');
+    setEditOrderIndex(typeof task.order_index === 'number' ? task.order_index : 0);
+    setEditVerifyCommand(task.verify_command || '');
     setEditPrompt(parsed.prompt);
     setEditGuardrails(parsed.guardrails);
     setEditRawMarkdown(task.task_markdown || '');
@@ -201,6 +207,8 @@ export const TaskSpecViewer: React.FC<TaskSpecViewerProps> = ({ task, onTaskUpda
         variant: editVariant.trim() || null,
         thinking: editThinking,
         feature: editFeature.trim() || null,
+        order_index: editOrderIndex,
+        verify_command: editVerifyCommand.trim() || null,
       };
 
       if (editModeType === 'raw') {
@@ -309,6 +317,36 @@ export const TaskSpecViewer: React.FC<TaskSpecViewerProps> = ({ task, onTaskUpda
                     className="w-full pl-6 pr-3 py-1.5 rounded bg-[#09090b] border border-[#27272a] focus:border-purple-500 focus:outline-none text-[#f4f4f5] text-xs font-mono"
                   />
                 </div>
+              </div>
+            </div>
+
+            {/* Esteira Autônoma e Quality Gate */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[#a1a1aa] font-medium mb-1">Ordem na Esteira (Posição):</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min={0}
+                    value={editOrderIndex}
+                    onChange={(e) => setEditOrderIndex(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                    className="w-full px-3 py-1.5 rounded bg-[#09090b] border border-[#27272a] focus:border-purple-500 focus:outline-none text-[#f4f4f5] text-xs font-mono"
+                  />
+                  <span className="text-[11px] font-mono text-purple-300 font-bold shrink-0">
+                    Etapa #{editOrderIndex + 1}
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[#a1a1aa] font-medium mb-1">Quality Gate (Verify Command):</label>
+                <input
+                  type="text"
+                  value={editVerifyCommand}
+                  onChange={(e) => setEditVerifyCommand(e.target.value)}
+                  placeholder="ex: npm run build && npm test"
+                  className="w-full px-3 py-1.5 rounded bg-[#09090b] border border-[#27272a] focus:border-emerald-500 focus:outline-none text-[#f4f4f5] text-xs font-mono"
+                />
               </div>
             </div>
 
@@ -529,10 +567,41 @@ export const TaskSpecViewer: React.FC<TaskSpecViewerProps> = ({ task, onTaskUpda
           </div>
 
           <div>
+            <span className="text-[#71717a] block">Iniciado em:</span>
+            <span className="text-[#a1a1aa]">
+              {task.started_at ? new Date(task.started_at).toLocaleString() : 'Aguardando início'}
+            </span>
+          </div>
+
+          <div>
             <span className="text-[#71717a] block">Concluído em:</span>
             <span className="text-[#a1a1aa]">
-              {task.completed_at ? new Date(task.completed_at).toLocaleString() : 'Em andamento / pendente'}
+              {task.status === 'running'
+                ? 'Em execução...'
+                : task.completed_at
+                  ? new Date(task.completed_at).toLocaleString()
+                  : 'Pendente'}
             </span>
+          </div>
+
+          <div>
+            <span className="text-[#71717a] block">Ordem na Esteira:</span>
+            <span className="text-purple-300 font-bold">
+              {typeof task.order_index === 'number'
+                ? `Etapa #${task.order_index + 1} (índice: ${task.order_index})`
+                : 'Não definida'}
+            </span>
+          </div>
+
+          <div className="col-span-2">
+            <span className="text-[#71717a] block">Quality Gate (Verify Command):</span>
+            {task.verify_command ? (
+              <span className="text-emerald-400 font-mono truncate block" title={task.verify_command}>
+                {task.verify_command}
+              </span>
+            ) : (
+              <span className="text-[#71717a] italic">Nenhum comando configurado</span>
+            )}
           </div>
         </div>
 

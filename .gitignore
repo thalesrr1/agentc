@@ -42,6 +42,7 @@ pnpm-debug.log*
 .env.development
 .env.local
 .env.*.local
+service.config.json
 
 # Caches de ferramentas e empacotadores
 .vite/

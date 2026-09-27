@@ -1,5 +1,5 @@
 import { getDb } from './connection.js';
-import type { Project, Task, TaskStatus, RunJSON } from '../types/index.js';
+import type { Project, Task, TaskStatus, RunJSON, FeaturePipelineState } from '../types/index.js';
 
 // Utilitário para mapear linha do banco para interface Task
 interface TaskRow {
@@ -20,6 +20,8 @@ interface TaskRow {
   feedback_prompt: string | null;
   exit_code: number | null;
   report_source: string | null;
+  order_index: number | null;
+  verify_command: string | null;
   created_at: string;
   started_at: string | null;
   completed_at: string | null;
@@ -56,6 +58,8 @@ function mapRowToTask(row: TaskRow): Task {
     feedback_prompt: row.feedback_prompt,
     exit_code: row.exit_code,
     report_source: (row.report_source ?? null) as 'worker' | 'auto' | 'fallback' | null,
+    order_index: row.order_index ?? 0,
+    verify_command: row.verify_command ?? null,
     created_at: row.created_at,
     started_at: row.started_at,
     completed_at: row.completed_at,
@@ -225,7 +229,7 @@ export const TaskRepository = {
   listByProjectId(projectId: string): Task[] {
     const db = getDb();
     const rows = db
-      .prepare('SELECT * FROM tasks WHERE project_id = ? ORDER BY created_at ASC')
+      .prepare('SELECT * FROM tasks WHERE project_id = ? ORDER BY order_index ASC, created_at ASC')
       .all(projectId) as TaskRow[];
     return rows.map(mapRowToTask);
   },
@@ -285,12 +289,16 @@ export const TaskRepository = {
     model: string;
     variant?: string | null;
     thinking?: boolean;
+    order_index?: number;
+    verify_command?: string | null;
   }): Task {
     const db = getDb();
     db.prepare(`
       UPDATE tasks 
       SET title = ?, mode = ?, feature = ?, runner = ?, model = ?,
-          variant = ?, thinking = ?
+          variant = ?, thinking = ?,
+          order_index = COALESCE(?, order_index),
+          verify_command = COALESCE(?, verify_command)
       WHERE id = ?
     `).run(
       updates.title,
@@ -300,6 +308,8 @@ export const TaskRepository = {
       updates.model,
       updates.variant ?? null,
       updates.thinking ? 1 : 0,
+      updates.order_index ?? null,
+      updates.verify_command ?? null,
       id
     );
     const updated = this.getById(id);
@@ -326,7 +336,11 @@ export const TaskRepository = {
     affected_files?: string[];
     feedback_prompt?: string | null;
     exit_code?: number | null;
+    order_index?: number | null;
+    verify_command?: string | null;
     created_at?: string;
+    started_at?: string | null;
+    completed_at?: string | null;
   }): Task {
     const db = getDb();
     const affectedJson = JSON.stringify(task.affected_files || []);
@@ -335,8 +349,9 @@ export const TaskRepository = {
         id, project_id, run_id, title, mode, status, feature, runner, model,
         variant, thinking,
         session_id, git_baseline_commit, affected_files, feedback_prompt, exit_code,
-        created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, CURRENT_TIMESTAMP))
+        order_index, verify_command,
+        created_at, started_at, completed_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, CURRENT_TIMESTAMP), ?, ?)
     `).run(
       task.id,
       task.project_id,
@@ -354,7 +369,11 @@ export const TaskRepository = {
       affectedJson,
       task.feedback_prompt ?? null,
       task.exit_code ?? null,
-      task.created_at ?? null
+      task.order_index ?? 0,
+      task.verify_command ?? null,
+      task.created_at ?? null,
+      task.started_at ?? null,
+      task.completed_at ?? null
     );
 
     ProjectRepository.touch(task.project_id);
@@ -367,10 +386,22 @@ export const TaskRepository = {
 
   updateStatus(id: string, status: TaskStatus, exitCode?: number | null): void {
     const db = getDb();
-    if (exitCode !== undefined) {
-      db.prepare('UPDATE tasks SET status = ?, exit_code = ? WHERE id = ?').run(status, exitCode, id);
+    if (status === 'done') {
+      if (exitCode !== undefined) {
+        db.prepare(
+          'UPDATE tasks SET status = ?, exit_code = ?, completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP) WHERE id = ?'
+        ).run(status, exitCode, id);
+      } else {
+        db.prepare(
+          'UPDATE tasks SET status = ?, completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP) WHERE id = ?'
+        ).run(status, id);
+      }
     } else {
-      db.prepare('UPDATE tasks SET status = ? WHERE id = ?').run(status, id);
+      if (exitCode !== undefined) {
+        db.prepare('UPDATE tasks SET status = ?, exit_code = ? WHERE id = ?').run(status, exitCode, id);
+      } else {
+        db.prepare('UPDATE tasks SET status = ? WHERE id = ?').run(status, id);
+      }
     }
     const task = this.getById(id);
     if (task) {
@@ -385,11 +416,12 @@ export const TaskRepository = {
 
   resetForExecution(id: string): void {
     const db = getDb();
+    const now = new Date().toISOString();
     db.prepare(`
       UPDATE tasks 
-      SET status = 'running', completed_at = NULL, exit_code = NULL 
+      SET status = 'running', started_at = ?, completed_at = NULL, exit_code = NULL 
       WHERE id = ?
-    `).run(id);
+    `).run(now, id);
     const task = this.getById(id);
     if (task) {
       ProjectRepository.touch(task.project_id);
@@ -462,6 +494,8 @@ export const TaskRepository = {
             affected_files = ?,
             exit_code = ?,
             report_source = COALESCE(?, report_source),
+            order_index = COALESCE(?, order_index),
+            verify_command = COALESCE(?, verify_command),
             started_at = COALESCE(?, started_at),
             completed_at = COALESCE(?, completed_at)
         WHERE id = ?
@@ -480,6 +514,8 @@ export const TaskRepository = {
         affectedJson,
         runJson.exit_code ?? null,
         runJson.report_source ?? null,
+        runJson.order_index ?? null,
+        runJson.verify_command ?? null,
         runJson.started_at ?? null,
         runJson.completed_at ?? null,
         existing.id
@@ -504,7 +540,11 @@ export const TaskRepository = {
         git_baseline_commit: runJson.git_baseline?.commit,
         affected_files: runJson.affected_files,
         exit_code: runJson.exit_code,
+        order_index: runJson.order_index ?? 0,
+        verify_command: runJson.verify_command ?? null,
         created_at: runJson.created_at,
+        started_at: runJson.started_at ?? null,
+        completed_at: runJson.completed_at ?? null,
       });
     }
   },
@@ -515,7 +555,124 @@ export const TaskRepository = {
       UPDATE tasks
       SET status = 'error', exit_code = 1, completed_at = CURRENT_TIMESTAMP
       WHERE status = 'running'
+        AND id NOT IN (
+          SELECT current_task_id FROM feature_pipelines 
+          WHERE current_task_id IS NOT NULL AND status IN ('running', 'paused')
+        )
     `).run();
+  },
+};
+
+export const FeaturePipelineRepository = {
+  get(projectId: string, feature: string): (FeaturePipelineState & { pause_requested: boolean }) | null {
+    const db = getDb();
+    const row = db
+      .prepare('SELECT * FROM feature_pipelines WHERE project_id = ? AND LOWER(feature) = LOWER(?)')
+      .get(projectId, feature.trim()) as any;
+    if (!row) return null;
+    const pendingIds = JSON.parse(row.pending_task_ids || '[]') as string[];
+    const completedIds = JSON.parse(row.completed_task_ids || '[]') as string[];
+    const uniqueIds = new Set([
+      ...pendingIds,
+      ...completedIds,
+      ...(row.current_task_id ? [row.current_task_id] : []),
+      ...(row.failed_task_id ? [row.failed_task_id] : []),
+    ]);
+    return {
+      project_id: row.project_id,
+      feature: row.feature,
+      status: row.status,
+      current_task_id: row.current_task_id || null,
+      total_tasks: uniqueIds.size,
+      completed_tasks: completedIds.length,
+      failed_task_id: row.failed_task_id || null,
+      halt_reason: row.halt_reason || null,
+      started_at: row.started_at,
+      updated_at: row.updated_at,
+      completed_at: row.completed_at || null,
+      pending_task_ids: pendingIds,
+      completed_task_ids: completedIds,
+      last_outcome: row.last_outcome ? JSON.parse(row.last_outcome) : null,
+      pause_requested: Boolean(row.pause_requested),
+    };
+  },
+
+  save(state: FeaturePipelineState, pauseRequested: boolean = false): void {
+    const db = getDb();
+    const id = `${state.project_id}::${state.feature.trim().toLowerCase()}`;
+    db.prepare(`
+      INSERT INTO feature_pipelines (
+        id, project_id, feature, status, current_task_id,
+        pending_task_ids, completed_task_ids, failed_task_id, halt_reason,
+        last_outcome, pause_requested, started_at, updated_at, completed_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(project_id, feature) DO UPDATE SET
+        status = excluded.status,
+        current_task_id = excluded.current_task_id,
+        pending_task_ids = excluded.pending_task_ids,
+        completed_task_ids = excluded.completed_task_ids,
+        failed_task_id = excluded.failed_task_id,
+        halt_reason = excluded.halt_reason,
+        last_outcome = excluded.last_outcome,
+        pause_requested = excluded.pause_requested,
+        updated_at = excluded.updated_at,
+        completed_at = excluded.completed_at
+    `).run(
+      id,
+      state.project_id,
+      state.feature.trim(),
+      state.status,
+      state.current_task_id || null,
+      JSON.stringify(state.pending_task_ids || []),
+      JSON.stringify(state.completed_task_ids || []),
+      state.failed_task_id || null,
+      state.halt_reason || null,
+      state.last_outcome ? JSON.stringify(state.last_outcome) : null,
+      (state.pause_requested !== undefined ? state.pause_requested : pauseRequested) ? 1 : 0,
+      state.started_at,
+      state.updated_at,
+      state.completed_at || null
+    );
+  },
+
+  listByProjectId(projectId: string): (FeaturePipelineState & { pause_requested: boolean })[] {
+    const db = getDb();
+    const rows = db
+      .prepare('SELECT * FROM feature_pipelines WHERE project_id = ?')
+      .all(projectId) as any[];
+    return rows.map((row) => {
+      const pendingIds = JSON.parse(row.pending_task_ids || '[]') as string[];
+      const completedIds = JSON.parse(row.completed_task_ids || '[]') as string[];
+      return {
+        project_id: row.project_id,
+        feature: row.feature,
+        status: row.status,
+        current_task_id: row.current_task_id || null,
+        total_tasks: pendingIds.length + completedIds.length + (row.failed_task_id ? 1 : 0),
+        completed_tasks: completedIds.length,
+        failed_task_id: row.failed_task_id || null,
+        halt_reason: row.halt_reason || null,
+        started_at: row.started_at,
+        updated_at: row.updated_at,
+        completed_at: row.completed_at || null,
+        pending_task_ids: pendingIds,
+        completed_task_ids: completedIds,
+        last_outcome: row.last_outcome ? JSON.parse(row.last_outcome) : null,
+        pause_requested: Boolean(row.pause_requested),
+      };
+    });
+  },
+
+  delete(projectId: string, feature?: string): void {
+    const db = getDb();
+    if (feature) {
+      db.prepare('DELETE FROM feature_pipelines WHERE project_id = ? AND LOWER(feature) = LOWER(?)').run(
+        projectId,
+        feature.trim()
+      );
+    } else {
+      db.prepare('DELETE FROM feature_pipelines WHERE project_id = ?').run(projectId);
+    }
   },
 };
 

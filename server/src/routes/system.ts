@@ -93,4 +93,69 @@ export const systemRoutes: FastifyPluginAsync = async (fastify: FastifyInstance)
       tools: MCP_TOOLS_DEFINITIONS,
     });
   });
+
+  // POST /api/system/open-code (abre o projeto no VS Code)
+  fastify.post<{ Body: { path?: string } }>('/open-code', async (request, reply) => {
+    const targetPath = request.body?.path?.trim();
+    if (!targetPath) {
+      return reply.status(400).send({ error: 'Caminho é obrigatório' });
+    }
+
+    if (!fs.existsSync(targetPath)) {
+      return reply.status(404).send({ error: 'Caminho não encontrado no disco' });
+    }
+
+    try {
+      const normalizedPath = path.normalize(targetPath);
+      if (os.platform() === 'win32') {
+        execFile('cmd.exe', ['/c', 'code', normalizedPath], { windowsHide: true }, (err) => {
+          if (err) {
+            console.error('[System] Erro ao disparar VS Code:', err.message);
+          }
+        });
+      } else {
+        execFile('code', [normalizedPath], (err) => {
+          if (err) {
+            console.error('[System] Erro ao disparar VS Code:', err.message);
+          }
+        });
+      }
+      return reply.send({ success: true, message: 'VS Code acionado com sucesso' });
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      return reply.status(500).send({ error: 'Falha ao abrir VS Code', details: errorMsg });
+    }
+  });
+
+  // POST /api/system/open-explorer (abre a pasta no explorador de arquivos nativo)
+  fastify.post<{ Body: { path?: string } }>('/open-explorer', async (request, reply) => {
+    const targetPath = request.body?.path?.trim();
+    if (!targetPath) {
+      return reply.status(400).send({ error: 'Caminho é obrigatório' });
+    }
+
+    if (!fs.existsSync(targetPath)) {
+      return reply.status(404).send({ error: 'Caminho não encontrado no disco' });
+    }
+
+    try {
+      const normalizedPath = path.normalize(targetPath);
+      if (os.platform() === 'win32') {
+        execFile('explorer.exe', [normalizedPath], { windowsHide: false }, (err) => {
+          if (err && (err as { code?: number }).code !== 1) {
+            console.error('[System] Erro ao disparar Explorer:', err.message);
+          }
+        });
+      } else if (os.platform() === 'darwin') {
+        execFile('open', [normalizedPath]);
+      } else {
+        execFile('xdg-open', [normalizedPath]);
+      }
+      return reply.send({ success: true, message: 'Explorador de arquivos aberto com sucesso' });
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      return reply.status(500).send({ error: 'Falha ao abrir explorador de arquivos', details: errorMsg });
+    }
+  });
 };
+

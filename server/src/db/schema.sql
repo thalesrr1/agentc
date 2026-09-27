@@ -27,6 +27,8 @@ CREATE TABLE IF NOT EXISTS tasks (
     feedback_prompt TEXT,          -- Última instrução de refinamento passada ao -Resume
     exit_code INTEGER,
     report_source TEXT,            -- 'worker' | 'auto' | 'fallback' | NULL
+    order_index INTEGER NOT NULL DEFAULT 0,
+    verify_command TEXT,           -- Comando determinístico pós-execução (Quality Gate)
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     started_at DATETIME,
     completed_at DATETIME,
@@ -39,4 +41,24 @@ CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS feature_pipelines (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    feature TEXT NOT NULL,
+    status TEXT NOT NULL CHECK(status IN ('idle', 'running', 'paused', 'completed', 'failed')),
+    current_task_id TEXT,
+    pending_task_ids TEXT NOT NULL,
+    completed_task_ids TEXT NOT NULL,
+    failed_task_id TEXT,
+    halt_reason TEXT,
+    last_outcome TEXT,
+    pause_requested INTEGER NOT NULL DEFAULT 0,
+    started_at DATETIME,
+    updated_at DATETIME,
+    completed_at DATETIME,
+    UNIQUE(project_id, feature)
+);
+
+CREATE INDEX IF NOT EXISTS idx_feature_pipelines_proj_feat ON feature_pipelines(project_id, feature);
 

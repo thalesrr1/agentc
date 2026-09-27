@@ -2,9 +2,59 @@
 <html lang="pt-BR" class="dark">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2310b981' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polygon points='12 2 2 7 12 12 22 7 12 2'/><polyline points='2 17 12 22 22 17'/><polyline points='2 12 12 17 22 12'/></svg>" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark" />
+
+    <!-- Identidade -->
     <title>AgentC — Central Visual de Orquestração com IA</title>
+    <meta name="application-name" content="AgentC" />
+    <meta name="author" content="AgentC" />
+    <meta name="generator" content="AgentC" />
+    <meta name="description" content="Central local-first de gerenciamento visual de tarefas e orquestração de desenvolvimento assistido por múltiplos agentes de IA." />
+    <meta name="keywords" content="AgentC, IA, agentes, kanban, orquestração, desenvolvimento, MCP, local-first" />
+    <meta name="theme-color" content="#10b981" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#10b981" />
+    <meta name="color-scheme" content="dark light" />
+
+    <!-- PWA: Manifesto -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+
+    <!-- Favicon: SVG vetorial (todos os browsers modernos) + fallback PNG 32 -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="alternate icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/icons/icon-512.png" />
+
+    <!-- iOS / Apple -->
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" sizes="152x152" href="/icons/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" sizes="167x167" href="/icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-title" content="AgentC" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="format-detection" content="telephone=no" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="AgentC" />
+    <meta property="og:title" content="AgentC — Central Visual de Orquestração com IA" />
+    <meta property="og:description" content="Central local-first de gerenciamento visual de tarefas e orquestração de desenvolvimento assistido por múltiplos agentes de IA." />
+    <meta property="og:locale" content="pt_BR" />
+    <meta property="og:image" content="/icons/icon-512.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="512" />
+    <meta property="og:image:height" content="512" />
+    <meta property="og:image:alt" content="AgentC — logo com marca de layers em emerald sobre fundo escuro" />
+
+    <!-- Twitter / X -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="AgentC — Central Visual de Orquestração com IA" />
+    <meta name="twitter:description" content="Central local-first de gerenciamento visual de tarefas e orquestração de desenvolvimento assistido por múltiplos agentes de IA." />
+    <meta name="twitter:image" content="/icons/icon-512.png" />
+    <meta name="twitter:image:alt" content="AgentC — logo com marca de layers em emerald sobre fundo escuro" />
   </head>
   <body class="bg-[#09090b] text-[#f4f4f5] antialiased selection:bg-emerald-500/20 selection:text-emerald-300">
     <div id="root"></div>

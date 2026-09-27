@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="AgentC">
+  <title>AgentC</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#09090b"/>
+      <stop offset="100%" stop-color="#18181b"/>
+    </linearGradient>
+    <linearGradient id="emerald" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#34d399"/>
+      <stop offset="100%" stop-color="#10b981"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <g stroke="url(#emerald)" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <polygon points="256,168 156,224 256,280 356,224 256,168"/>
+    <polyline points="156,288 256,344 356,288"/>
+    <polyline points="156,352 256,408 356,352"/>
+  </g>
+  <circle cx="256" cy="256" r="4" fill="#10b981" opacity="0.9"/>
+</svg>

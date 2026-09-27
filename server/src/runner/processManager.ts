@@ -51,9 +51,15 @@ export const ProcessManager = {
       startTime: Date.now(),
     });
 
-    // Limpa apenas em 'close' quando todos os streams stdio foram completamente descarregados
+    // Limpa processo em 'close', mantendo listeners enquanto houver conexões SSE abertas
     proc.once('close', () => {
-      activeProcesses.delete(runId);
+      const cur = activeProcesses.get(runId);
+      if (cur) {
+        cur.process = null as unknown as ChildProcess;
+        if (cur.listeners.size === 0) {
+          activeProcesses.delete(runId);
+        }
+      }
     });
   },
 
@@ -115,7 +121,9 @@ export const ProcessManager = {
   async kill(runId: string): Promise<void> {
     const entry = activeProcesses.get(runId);
     if (!entry || !entry.process) {
-      activeProcesses.delete(runId);
+      if (entry && entry.listeners.size === 0) {
+        activeProcesses.delete(runId);
+      }
       return;
     }
 
@@ -130,7 +138,10 @@ export const ProcessManager = {
       }
     }
 
-    activeProcesses.delete(runId);
+    entry.process = null as unknown as ChildProcess;
+    if (entry.listeners.size === 0) {
+      activeProcesses.delete(runId);
+    }
   },
 
   /**

@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#09090b" />
+    <meta name="color-scheme" content="dark" />
+    <title>AgentC &mdash; Offline</title>
+    <style>
+      :root {
+        --bg-app: #09090b;
+        --bg-surface: #18181b;
+        --bg-card: #27272a;
+        --border-subtle: #27272a;
+        --border-focus: #3f3f46;
+        --text-primary: #f4f4f5;
+        --text-secondary: #a1a1aa;
+        --text-muted: #71717a;
+        --emerald-500: #10b981;
+        --emerald-400: #34d399;
+        --emerald-300: #6ee7b7;
+        --rose-500: #f43f5e;
+        --rose-800: #9f1239;
+        --rose-950: #4c0519;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+      }
+
+      body {
+        background: var(--bg-app);
+        color: var(--text-primary);
+        font-family:
+          "Inter", "Geist Sans", -apple-system, BlinkMacSystemFont, "Segoe UI",
+          Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        overflow: hidden;
+      }
+
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        background:
+          radial-gradient(
+            ellipse at top,
+            rgba(16, 185, 129, 0.08),
+            transparent 60%
+          ),
+          radial-gradient(
+            ellipse at bottom,
+            rgba(244, 63, 94, 0.05),
+            transparent 60%
+          );
+        pointer-events: none;
+        z-index: 0;
+      }
+
+      .card {
+        position: relative;
+        z-index: 1;
+        max-width: 460px;
+        width: 100%;
+        background: var(--bg-surface);
+        border: 1px solid var(--border-focus);
+        border-radius: 16px;
+        padding: 40px 32px;
+        text-align: center;
+        box-shadow:
+          0 24px 48px -12px rgba(0, 0, 0, 0.5),
+          0 0 0 1px rgba(16, 185, 129, 0.04);
+        animation: card-in 0.4s ease-out;
+      }
+
+      @keyframes card-in {
+        from {
+          opacity: 0;
+          transform: translateY(8px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .logo {
+        display: flex;
+        justify-content: center;
+        margin-bottom: 24px;
+      }
+
+      .logo-glow {
+        filter: drop-shadow(0 0 16px rgba(16, 185, 129, 0.35));
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 4px 12px;
+        background: var(--rose-950);
+        border: 1px solid var(--rose-800);
+        color: var(--rose-500);
+        font-size: 11px;
+        font-weight: 500;
+        letter-spacing: 0.04em;
+        border-radius: 999px;
+        margin-bottom: 20px;
+        font-family: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+      }
+
+      .badge .pulse {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--rose-500);
+        animation: pulse 1.5s ease-in-out infinite;
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.35;
+        }
+      }
+
+      h1 {
+        margin: 0 0 12px;
+        font-size: 22px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+        color: var(--text-primary);
+      }
+
+      p.lead {
+        margin: 0 0 24px;
+        font-size: 14px;
+        line-height: 1.6;
+        color: var(--text-secondary);
+      }
+
+      .steps {
+        text-align: left;
+        background: var(--bg-app);
+        border: 1px solid var(--border-subtle);
+        border-radius: 10px;
+        padding: 16px 18px;
+        margin: 0 0 28px;
+        font-size: 13px;
+        line-height: 1.7;
+        color: var(--text-secondary);
+      }
+
+      .steps ol {
+        margin: 0;
+        padding-left: 18px;
+      }
+
+      .steps li {
+        margin-bottom: 4px;
+      }
+
+      .steps code {
+        font-family: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+        font-size: 12px;
+        padding: 2px 6px;
+        background: var(--bg-card);
+        color: var(--emerald-300);
+        border-radius: 4px;
+        border: 1px solid var(--border-subtle);
+      }
+
+      .endpoint {
+        display: inline-block;
+        margin-top: 14px;
+        font-family: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+        font-size: 11px;
+        padding: 4px 10px;
+        background: var(--bg-card);
+        color: var(--text-muted);
+        border: 1px solid var(--border-subtle);
+        border-radius: 6px;
+        letter-spacing: 0.02em;
+      }
+
+      .actions {
+        display: flex;
+        gap: 12px;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 20px;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 500;
+        font-family: inherit;
+        cursor: pointer;
+        border: 1px solid transparent;
+        transition:
+          background-color 0.15s ease,
+          border-color 0.15s ease,
+          transform 0.05s ease;
+        text-decoration: none;
+      }
+
+      .btn:active {
+        transform: translateY(1px);
+      }
+
+      .btn-primary {
+        background: var(--emerald-500);
+        color: #ffffff;
+        border-color: var(--emerald-500);
+      }
+
+      .btn-primary:hover {
+        background: var(--emerald-400);
+        border-color: var(--emerald-400);
+      }
+
+      .btn-ghost {
+        background: transparent;
+        color: var(--text-secondary);
+        border-color: var(--border-focus);
+      }
+
+      .btn-ghost:hover {
+        color: var(--text-primary);
+        border-color: var(--text-muted);
+      }
+
+      .footer {
+        margin-top: 28px;
+        font-size: 11px;
+        color: var(--text-muted);
+        font-family: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+        letter-spacing: 0.04em;
+      }
+
+      @media (max-width: 480px) {
+        .card {
+          padding: 28px 20px;
+        }
+        h1 {
+          font-size: 18px;
+        }
+        p.lead {
+          font-size: 13px;
+        }
+        .actions {
+          flex-direction: column;
+        }
+        .btn {
+          width: 100%;
+          justify-content: center;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="card" role="alert" aria-live="assertive">
+      <div class="logo" aria-hidden="true">
+        <svg
+          class="logo-glow"
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 512 512"
+          width="72"
+          height="72"
+          role="img"
+          aria-label="AgentC"
+        >
+          <defs>
+            <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#09090b" />
+              <stop offset="100%" stop-color="#18181b" />
+            </linearGradient>
+            <linearGradient id="emerald" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#34d399" />
+              <stop offset="100%" stop-color="#10b981" />
+            </linearGradient>
+          </defs>
+          <rect width="512" height="512" rx="96" fill="url(#bg)" />
+          <rect
+            x="2"
+            y="2"
+            width="508"
+            height="508"
+            rx="94"
+            fill="none"
+            stroke="#27272a"
+            stroke-width="2"
+          />
+          <g
+            stroke="url(#emerald)"
+            stroke-width="22"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            fill="none"
+          >
+            <polygon points="256,72 96,160 256,248 416,160 256,72" />
+            <polyline points="96,272 256,360 416,272" />
+            <polyline points="96,384 256,472 416,384" />
+          </g>
+          <circle cx="256" cy="256" r="6" fill="#10b981" opacity="0.9" />
+        </svg>
+      </div>
+
+      <div class="badge">
+        <span class="pulse" aria-hidden="true"></span>
+        <span>SERVIDOR INDISPON&Iacute;VEL</span>
+      </div>
+
+      <h1>AgentC est&aacute; offline</h1>
+      <p class="lead">
+        O servidor local do AgentC n&atilde;o est&aacute; respondendo.
+        O aplicativo precisa do backend Fastify rodando para acessar projetos,
+        tarefas e o stream de logs ao vivo.
+      </p>
+
+      <div class="steps" aria-label="Como iniciar o servidor">
+        <strong style="color: var(--text-primary); font-weight: 600;"
+          >Para reconectar:</strong
+        >
+        <ol>
+          <li>
+            Abra um terminal na raiz do reposit&oacute;rio
+            (<code>D:\PROJETOS\agentc</code>).
+          </li>
+          <li>
+            Execute
+            <code>npm run dev:server</code>
+            ou
+            <code>iniciar-agentc.bat</code>.
+          </li>
+          <li>Clique em <strong>Tentar novamente</strong> abaixo.</li>
+        </ol>
+        <div class="endpoint" aria-label="Endere&ccedil;o esperado do servidor">
+          esperado: http://localhost:3000
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="btn btn-primary" type="button" onclick="window.location.reload()">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            width="14"
+            height="14"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M21 12a9 9 0 1 1-3-6.7" />
+            <polyline points="21 4 21 10 15 10" />
+          </svg>
+          Tentar novamente
+        </button>
+      </div>
+
+      <div class="footer" aria-hidden="true">
+        AgentC &middot; local-first PWA &middot; offline mode
+      </div>
+    </main>
+  </body>
+</html>

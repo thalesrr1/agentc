@@ -24,13 +24,14 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   const [elapsed, setElapsed] = useState<string>('');
 
   useEffect(() => {
-    if (!isRunning || !task.started_at) {
+    if (!isRunning) {
       setElapsed('');
       return;
     }
 
+    const fallbackStart = Date.now();
     const updateTimer = () => {
-      const startTime = new Date(task.started_at!).getTime();
+      const startTime = task.started_at ? new Date(task.started_at).getTime() : fallbackStart;
       const diffMs = Math.max(0, Date.now() - startTime);
       const totalSec = Math.floor(diffMs / 1000);
       const mins = Math.floor(totalSec / 60);
@@ -64,7 +65,10 @@ export const TaskCard: React.FC<TaskCardProps> = ({
     >
       {/* Header: Run ID e Timer/Status */}
       <div className="flex items-center justify-between gap-2 mb-2">
-        <span className="text-[10px] font-mono text-[#71717a] truncate max-w-[170px]">
+        <span
+          title={`ID da execução no disco: ${task.run_id}\nCriada em: ${new Date(task.created_at).toLocaleString()}`}
+          className="text-[10px] font-mono text-[#71717a] group-hover:text-[#a1a1aa] transition-colors truncate max-w-[170px]"
+        >
           {task.run_id}
         </span>
 
@@ -95,9 +99,19 @@ export const TaskCard: React.FC<TaskCardProps> = ({
       </div>
 
       {/* Title */}
-      <h3 className="text-xs font-medium text-[#f4f4f5] leading-snug line-clamp-2 mb-3">
-        {task.title}
-      </h3>
+      <div className="flex items-start gap-2 mb-3">
+        {typeof task.order_index === 'number' && (
+          <span
+            title={`Etapa #${task.order_index + 1} da esteira${task.feature ? ` (#${task.feature})` : ''}`}
+            className="shrink-0 inline-flex items-center justify-center min-w-[26px] h-[22px] px-1.5 rounded text-[11px] font-mono font-bold bg-purple-950/80 border border-purple-700/80 text-purple-200 shadow-sm"
+          >
+            #{task.order_index + 1}
+          </span>
+        )}
+        <h3 className="text-xs font-medium text-[#f4f4f5] leading-snug line-clamp-2 flex-1">
+          {task.title}
+        </h3>
+      </div>
 
       {/* Badges de Modo e Runner */}
       <div className="flex flex-wrap items-center gap-1.5 mb-3">

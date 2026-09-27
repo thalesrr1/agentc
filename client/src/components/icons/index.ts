@@ -12,3 +12,7 @@ export type {
   RunnerBadgeSize,
   RunnerBadgeTone,
 } from './RunnerBadge.js';
+
+export { VSCodeLogo } from './VSCodeLogo.js';
+export type { VSCodeLogoProps } from './VSCodeLogo.js';
+

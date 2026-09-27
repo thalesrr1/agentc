@@ -39,7 +39,8 @@ export const MCP_TOOLS_DEFINITIONS: McpToolDefinition[] = [
   },
   {
     name: 'agentc_create_plan',
-    description: "Register decomposed task backlog directly onto the project's Kanban board. Features automatic idempotency: reuses and updates existing pending backlog cards.",
+    description:
+      "Register decomposed task backlog directly onto the project's Kanban board. Features automatic idempotency: reuses and updates existing pending backlog cards. Tasks are auto-numbered (order_index 0,1,2…) based on array order to enable autonomous Feature Pipeline execution.",
     inputSchema: {
       type: 'object',
       properties: {
@@ -60,6 +61,11 @@ export const MCP_TOOLS_DEFINITIONS: McpToolDefinition[] = [
               thinking: { type: 'boolean', description: 'Enable thinking blocks display in OpenCode CLI execution.' },
               prompt: { type: 'string', description: 'Precise goal, instructions, and verifiable acceptance criteria' },
               guardrails: { type: 'string', description: 'Technical constraints or rules that must not be violated' },
+              verify_command: {
+                type: 'string',
+                description:
+                  'Optional. Deterministic quality gate command executed after the worker (e.g. "npm run build && npm test"). On non-zero exit, the Feature Pipeline Circuit Breaker pauses the pipeline for inspection.',
+              },
             },
             required: ['title', 'mode', 'prompt'],
           },
@@ -135,10 +141,67 @@ export const MCP_TOOLS_DEFINITIONS: McpToolDefinition[] = [
     inputSchema: {
       type: 'object',
       properties: {
-        project_path: { type: 'string', description: 'Absolute project repository path' },
+        project_path: { type: 'string', description: 'Absolute project path' },
         task_id: { type: 'string', description: 'ID of active task to cancel' },
       },
       required: ['project_path', 'task_id'],
+    },
+  },
+  {
+    name: 'agentc_start_feature',
+    description:
+      'Start the autonomous Feature Pipeline for a given feature. Tasks are executed sequentially in order_index order; each completed task triggers the next automatically. A verify_command per task acts as a deterministic quality gate. The Circuit Breaker halts the pipeline on any worker failure or quality gate failure (PIPELINE_HALTED event), preserving tokens by skipping downstream tasks. Designed for async, fire-and-forget orchestration: pass wait=false (default) to return immediately after dispatch.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        project_path: { type: 'string', description: 'Absolute project repository path' },
+        feature: { type: 'string', description: 'Feature name (must match tasks registered via agentc_create_plan).' },
+        wait: {
+          type: 'boolean',
+          description:
+            'If false (default), returns immediately after dispatching the pipeline. If true, blocks until the pipeline reaches a terminal state (completed/failed).',
+        },
+      },
+      required: ['project_path', 'feature'],
+    },
+  },
+  {
+    name: 'agentc_get_feature_status',
+    description:
+      'Query the state of a Feature Pipeline: status (idle/running/paused/completed/failed), current task, completed count, pending tasks, halt reason and last task outcome. Use to monitor pipeline progress without inspecting each task individually.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        project_path: { type: 'string', description: 'Absolute project repository path' },
+        feature: { type: 'string', description: 'Feature name.' },
+      },
+      required: ['project_path', 'feature'],
+    },
+  },
+  {
+    name: 'agentc_pause_feature',
+    description:
+      'Pause an active Feature Pipeline. The currently running task finishes naturally; the pipeline then enters the paused state and does not advance to subsequent tasks. Useful for human-in-the-loop control.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        project_path: { type: 'string', description: 'Absolute project repository path' },
+        feature: { type: 'string', description: 'Feature name.' },
+      },
+      required: ['project_path', 'feature'],
+    },
+  },
+  {
+    name: 'agentc_resume_feature',
+    description:
+      'Resume a paused or halted Feature Pipeline. If the pipeline had been halted by the Circuit Breaker, the failed task must first be moved back to backlog (or otherwise cleared) via agentc_update_task_status.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        project_path: { type: 'string', description: 'Absolute project repository path' },
+        feature: { type: 'string', description: 'Feature name.' },
+      },
+      required: ['project_path', 'feature'],
     },
   },
 ];

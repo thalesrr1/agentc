@@ -117,6 +117,8 @@ export const Reconciler = {
       model?: string;
       variant?: string;
       thinking?: boolean;
+      order_index?: number;
+      verify_command?: string;
       prompt: string;
       guardrails?: string;
     }
@@ -180,6 +182,8 @@ export const Reconciler = {
     const variant = data.variant && data.variant.trim().length > 0 ? data.variant.trim() : undefined;
     const thinking = Boolean(data.thinking);
     const feature = data.feature && data.feature.trim().length > 0 ? data.feature.trim() : undefined;
+    const orderIndex = typeof data.order_index === 'number' ? data.order_index : 0;
+    const verifyCommand = data.verify_command && data.verify_command.trim().length > 0 ? data.verify_command.trim() : undefined;
 
     const runJson: RunJSON = {
       id: runId,
@@ -191,6 +195,8 @@ export const Reconciler = {
       model,
       variant,
       thinking,
+      order_index: orderIndex,
+      verify_command: verifyCommand,
       created_at: new Date().toISOString(),
     };
     fs.writeFileSync(path.join(runDir, 'run.json'), JSON.stringify(runJson, null, 2), 'utf8');
@@ -205,6 +211,8 @@ export const Reconciler = {
         model,
         variant: variant ?? null,
         thinking,
+        order_index: orderIndex,
+        verify_command: verifyCommand ?? null,
       });
       return Object.assign(updated, { reused: true });
     }
@@ -226,6 +234,8 @@ export const Reconciler = {
       model,
       variant: variant ?? null,
       thinking,
+      order_index: orderIndex,
+      verify_command: verifyCommand ?? null,
       created_at: runJson.created_at,
     });
   },
@@ -248,6 +258,14 @@ export const Reconciler = {
         ...updates,
         git_baseline: updates.git_baseline ? { ...existing.git_baseline, ...updates.git_baseline } : existing.git_baseline,
       };
+
+      // Limpa campos explicitamente marcados como undefined/null no updates (ex: completed_at e exit_code ao reiniciar)
+      for (const [key, value] of Object.entries(updates)) {
+        if (value === undefined || value === null) {
+          delete (updated as any)[key];
+        }
+      }
+
       fs.writeFileSync(runJsonPath, JSON.stringify(updated, null, 2), 'utf8');
       return updated;
     } catch (err) {

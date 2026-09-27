@@ -404,8 +404,16 @@ export const TerminalViewer: React.FC<TerminalViewerProps> = ({ logs, isRunning 
               <span className="text-xs">
                 {searchQuery
                   ? `Nenhum resultado encontrado para "${searchQuery}"`
+                  : isRunning
+                  ? 'Inicializando agente e preparando ambiente...'
                   : 'Aguardando início da execução do subprocesso CLI...'}
               </span>
+              {isRunning && !searchQuery && (
+                <div className="flex items-center gap-2 text-emerald-400 text-[11px] font-mono animate-pulse mt-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                  <span>Conexão em tempo real estabelecida</span>
+                </div>
+              )}
             </div>
           )
         ) : (

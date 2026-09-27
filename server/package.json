@@ -6,7 +6,7 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "rimraf dist && tsc",
+    "build": "rimraf dist && tsc && node -e \"import('node:fs').then(fs => fs.copyFileSync('src/db/schema.sql', 'dist/db/schema.sql'))\"",
     "start": "node dist/index.js",
     "mcp": "node dist/mcp/cli.js",
     "test": "tsx test-mcp-lifecycle.ts"

@@ -1,7 +1,17 @@
 import React, { useState } from 'react';
-import { Copy, Check, Plus, ShieldCheck, Cpu, RefreshCw, Settings } from 'lucide-react';
+import {
+  Copy,
+  Check,
+  Plus,
+  Cpu,
+  RefreshCw,
+  Settings,
+  FolderOpen,
+} from 'lucide-react';
 import type { Project, QueueStatus, RunnerType } from '../../types/index.js';
 import { RunnerBadge } from '../icons/RunnerBadge.js';
+import { VSCodeLogo } from '../icons/VSCodeLogo.js';
+import { api } from '../../services/api.js';
 
 interface TopbarProps {
   project: Project | null;
@@ -13,6 +23,7 @@ interface TopbarProps {
   onOpenMcpModal?: () => void;
   onRefresh: () => void;
   isRefreshing?: boolean;
+  onToast?: (message: string) => void;
 }
 
 export const Topbar: React.FC<TopbarProps> = ({
@@ -25,94 +36,169 @@ export const Topbar: React.FC<TopbarProps> = ({
   onOpenMcpModal,
   onRefresh,
   isRefreshing = false,
+  onToast,
 }) => {
   const [copied, setCopied] = useState(false);
+  const [openedCode, setOpenedCode] = useState(false);
+  const [openedExplorer, setOpenedExplorer] = useState(false);
 
   const handleCopyPath = () => {
     if (!project?.path) return;
     navigator.clipboard.writeText(project.path);
     setCopied(true);
+    onToast?.('Caminho copiado para a área de transferência');
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleOpenInCode = async () => {
+    if (!project?.path) return;
+    try {
+      await api.openInCode(project.path);
+      setOpenedCode(true);
+      onToast?.('Abrindo projeto no VS Code...');
+      setTimeout(() => setOpenedCode(false), 2000);
+    } catch (err) {
+      console.error('Falha ao abrir no VS Code:', err);
+      // Fallback para protocolo vscode:// no navegador
+      window.location.href = `vscode://file/${encodeURIComponent(project.path)}`;
+    }
+  };
+
+  const handleOpenInExplorer = async () => {
+    if (!project?.path) return;
+    try {
+      await api.openInExplorer(project.path);
+      setOpenedExplorer(true);
+      onToast?.('Abrindo pasta no Explorador de Arquivos...');
+      setTimeout(() => setOpenedExplorer(false), 2000);
+    } catch (err) {
+      console.error('Falha ao abrir no Explorador:', err);
+    }
   };
 
   const isBuilderBusy = queueStatus && queueStatus.activeBuilderTaskId !== null;
   const waitingCount = queueStatus?.waitingCount ?? 0;
 
   return (
-    <header className="h-14 bg-[#09090b] border-b border-[#27272a] px-6 flex items-center justify-between select-none">
-      {/* Active Project & Path */}
-      <div className="flex items-center gap-3 min-w-0">
-        <h1 className="text-sm font-semibold text-[#f4f4f5] truncate">
+    <header className="h-13 bg-[#09090b]/90 backdrop-blur-md border-b border-zinc-800/80 px-5 flex items-center justify-between select-none shrink-0 z-10">
+      {/* 1. Projeto Ativo, Caminho & Ações Rápidas (VS Code / Explorer / Copiar) */}
+      <div className="flex items-center gap-2.5 min-w-0">
+        <h1 className="text-[13px] font-semibold text-zinc-100 tracking-tight truncate">
           {project ? project.name : 'Nenhum Projeto Selecionado'}
         </h1>
 
         {project && (
-          <button
-            onClick={handleCopyPath}
-            title="Copiar caminho absoluto do repositório"
-            className="flex items-center gap-1.5 px-2 py-1 rounded bg-[#18181b] border border-[#27272a] hover:border-[#3f3f46] text-[#71717a] hover:text-[#a1a1aa] text-[11px] font-mono transition-colors"
-          >
-            <span className="truncate max-w-[240px]">{project.path}</span>
-            {copied ? (
-              <Check className="w-3 h-3 text-emerald-400 shrink-0" />
-            ) : (
-              <Copy className="w-3 h-3 shrink-0" />
-            )}
-          </button>
+          <div className="flex items-center rounded-md border border-zinc-800/80 bg-zinc-900/60 p-0.5 text-xs">
+            {/* Exibição do caminho e botão de cópia */}
+            <button
+              onClick={handleCopyPath}
+              title="Copiar caminho absoluto do repositório"
+              className="flex items-center gap-1.5 px-2 py-0.5 rounded text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60 font-mono text-[11px] transition-colors"
+            >
+              <span className="truncate max-w-[210px]">{project.path}</span>
+              {copied ? (
+                <Check className="w-3 h-3 text-emerald-400 shrink-0" />
+              ) : (
+                <Copy className="w-3 h-3 text-zinc-500 shrink-0" />
+              )}
+            </button>
+
+            <div className="h-3 w-px bg-zinc-800 mx-0.5" />
+
+            {/* Abrir no VS Code */}
+            <button
+              onClick={handleOpenInCode}
+              title="Abrir projeto no VS Code"
+              className="p-1 rounded text-zinc-400 hover:text-sky-400 hover:bg-zinc-800/80 transition-colors"
+            >
+              {openedCode ? (
+                <Check className="w-3.5 h-3.5 text-sky-400" />
+              ) : (
+                <VSCodeLogo size={13} className="shrink-0" />
+              )}
+            </button>
+
+            {/* Abrir no Explorador de Arquivos */}
+            <button
+              onClick={handleOpenInExplorer}
+              title="Abrir pasta no Explorador de Arquivos"
+              className="p-1 rounded text-zinc-400 hover:text-amber-400 hover:bg-zinc-800/80 transition-colors"
+            >
+              {openedExplorer ? (
+                <Check className="w-3.5 h-3.5 text-amber-400" />
+              ) : (
+                <FolderOpen className="w-3.5 h-3.5 shrink-0" />
+              )}
+            </button>
+          </div>
         )}
       </div>
 
-      {/* Status Badges & Actions */}
-      <div className="flex items-center gap-3">
-        {/* SELETOR RÁPIDO DO MOTOR DE EXECUÇÃO ATIVO */}
+      {/* 2. Status Badges & Ações Globais */}
+      <div className="flex items-center gap-2.5">
+        {/* Seletor Rápido do Motor de Execução */}
         <button
           onClick={onOpenCliManager}
-          title="Clique para gerenciar CLIs e alternar o motor/modelo padrão que receberá tarefas"
-          className="flex items-center gap-2 px-2 py-1 rounded-md text-[11px] font-medium bg-[#18181b] border border-[#27272a] hover:border-emerald-500/60 hover:bg-[#1f1f23] transition-colors cursor-pointer group"
+          title="Clique para alternar o motor (OpenCode / Antigravity CLI) e modelo padrão"
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium bg-zinc-900/60 border border-zinc-800/80 hover:border-zinc-700 hover:bg-zinc-800/60 text-zinc-300 transition-colors cursor-pointer group"
         >
-          <span className="text-[#a1a1aa] hidden sm:inline">Motor:</span>
+          <span className="text-zinc-500 text-[10px] uppercase font-semibold tracking-wider hidden sm:inline">
+            Motor
+          </span>
           <RunnerBadge
             runner={activeRunner}
             model={activeModel}
             size="xs"
             tone="subtle"
-            className="border-transparent bg-transparent group-hover:bg-[#27272a]/60"
+            className="border-transparent bg-transparent"
           />
-          <Settings className="w-3 h-3 text-[#71717a] group-hover:text-[#f4f4f5] ml-0.5 transition-colors" />
+          <Settings className="w-3 h-3 text-zinc-500 group-hover:text-zinc-300 transition-colors ml-0.5 shrink-0" />
         </button>
 
-        {/* Status da Fila Builder */}
+        {/* Status da Fila Builder — Concorrência FIFO por Projeto */}
         <div
           title={
             isBuilderBusy
-              ? `Executando tarefa Builder com ${waitingCount} na fila`
-              : 'Fila Builder livre para novas tarefas de escrita de código'
+              ? `Fila Builder: Executando tarefa com ${waitingCount} aguardando (serialização FIFO para evitar conflitos de gravação em disco)`
+              : 'Fila Builder: Livre para novas tarefas de escrita (tarefas Scout rodam em paralelo; Builder roda 1 por vez)'
           }
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium bg-[#18181b] border border-[#27272a]"
+          className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-medium border transition-colors ${
+            isBuilderBusy
+              ? 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+              : 'bg-zinc-900/60 border-zinc-800/80 text-zinc-400'
+          }`}
         >
-          <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-          <span className="text-[#a1a1aa]">Fila Builder:</span>
-          {isBuilderBusy ? (
-            <span className="text-amber-400 flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping"></span>
-              {waitingCount > 0 ? `${waitingCount} na Fila` : 'Ocupada'}
-            </span>
-          ) : (
-            <span className="text-emerald-400">Livre</span>
-          )}
+          <span className="relative flex h-2 w-2 items-center justify-center shrink-0">
+            {isBuilderBusy ? (
+              <>
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-400" />
+              </>
+            ) : (
+              <span className="inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
+            )}
+          </span>
+          <span className="text-zinc-500 text-[10px] uppercase font-semibold tracking-wider">
+            Builder
+          </span>
+          <span className={isBuilderBusy ? 'text-amber-300 font-medium' : 'text-zinc-300'}>
+            {isBuilderBusy ? (waitingCount > 0 ? `${waitingCount} na fila` : 'Ativo') : 'Livre'}
+          </span>
         </div>
 
-        {/* Status do Servidor MCP - Clicável */}
+        {/* Status do Servidor MCP — Clicável */}
         <button
           onClick={onOpenMcpModal}
-          title="Clique para ver detalhes das 8 ferramentas ativas do servidor MCP do AgentC"
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium bg-[#18181b] border border-[#27272a] hover:border-indigo-500/60 hover:bg-[#1f1f23] transition-colors cursor-pointer group"
+          title="Clique para ver detalhes das ferramentas ativas do servidor MCP do AgentC"
+          className="flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-medium bg-zinc-900/60 border border-zinc-800/80 hover:border-zinc-700 hover:bg-zinc-800/60 text-zinc-300 transition-colors cursor-pointer group"
         >
-          <Cpu className="w-3.5 h-3.5 text-indigo-400 group-hover:scale-105 transition-transform" />
-          <span className="text-[#a1a1aa]">MCP:</span>
-          <span className="text-emerald-400 flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-            8 Tools
+          <Cpu className="w-3.5 h-3.5 text-zinc-400 group-hover:text-indigo-400 transition-colors shrink-0" />
+          <span className="text-zinc-500 text-[10px] uppercase font-semibold tracking-wider">
+            MCP
+          </span>
+          <span className="flex items-center gap-1 text-zinc-300 font-mono text-[11px]">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+            8 tools
           </span>
         </button>
 
@@ -120,7 +206,7 @@ export const Topbar: React.FC<TopbarProps> = ({
         <button
           onClick={onRefresh}
           title="Atualizar Kanban e sincronizar disco"
-          className="p-1.5 rounded-md bg-[#18181b] border border-[#27272a] hover:border-[#3f3f46] text-[#a1a1aa] hover:text-[#f4f4f5] transition-colors"
+          className="p-1.5 rounded-md border border-zinc-800/80 bg-zinc-900/60 hover:bg-zinc-800 hover:border-zinc-700 text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-emerald-400' : ''}`} />
         </button>
@@ -129,11 +215,11 @@ export const Topbar: React.FC<TopbarProps> = ({
         <button
           onClick={onOpenNewTaskModal}
           disabled={!project}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition-colors"
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed shadow-[0_1px_2px_rgba(0,0,0,0.3)] border border-emerald-500/20 transition-all cursor-pointer"
         >
-          <Plus className="w-3.5 h-3.5" />
+          <Plus className="w-3.5 h-3.5 shrink-0" />
           <span>Nova Tarefa</span>
-          <kbd className="hidden sm:inline-block px-1 py-0.2 text-[9px] font-mono rounded bg-emerald-700/80 text-emerald-200">
+          <kbd className="hidden sm:inline-block px-1 py-0.2 text-[9px] font-mono rounded bg-emerald-700/60 text-emerald-100 border border-emerald-500/20">
             Ctrl+N
           </kbd>
         </button>

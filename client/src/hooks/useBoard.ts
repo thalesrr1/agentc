@@ -19,6 +19,10 @@ export function useBoard(projectId: string | null) {
       if (isFetchingRef.current) return;
       isFetchingRef.current = true;
 
+      const safetyUnlock = setTimeout(() => {
+        isFetchingRef.current = false;
+      }, 16000);
+
       try {
         const data = await api.getBoard(projectId, options);
         setBoardData(data);
@@ -26,6 +30,7 @@ export function useBoard(projectId: string | null) {
       } catch (err: unknown) {
         setError(String(err));
       } finally {
+        clearTimeout(safetyUnlock);
         setLoading(false);
         isFetchingRef.current = false;
       }
@@ -48,7 +53,7 @@ export function useBoard(projectId: string | null) {
     )
   );
 
-  // Polling adaptativo & Gerenciamento de visibilidade (Visibility API)
+  // Polling adaptativo & Gerenciamento de visibilidade (Visibility API & Window Focus)
   useEffect(() => {
     if (!projectId) return;
 
@@ -68,17 +73,19 @@ export function useBoard(projectId: string | null) {
       fetchBoard();
     }, intervalMs);
 
-    // Quando o usuário volta para a aba, atualiza imediatamente
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
+    // Quando o usuário volta para a aba ou foca a janela, atualiza imediatamente
+    const handleReactivation = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
         fetchBoard();
       }
     };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener('visibilitychange', handleReactivation);
+    window.addEventListener('focus', handleReactivation);
 
     return () => {
       clearInterval(interval);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.removeEventListener('visibilitychange', handleReactivation);
+      window.removeEventListener('focus', handleReactivation);
     };
   }, [
     projectId,

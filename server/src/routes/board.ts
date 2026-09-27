@@ -46,6 +46,13 @@ export const boardRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
       }
     }
 
+    // Ordenação da coluna Concluído: a última tarefa feita fica no topo
+    columns.done.sort((a, b) => {
+      const timeA = a.completed_at || a.created_at;
+      const timeB = b.completed_at || b.created_at;
+      return timeB.localeCompare(timeA);
+    });
+
     // 3. Status da fila Builder para este projeto
     const queueStatus = TaskQueue.getStatus(project.id);
 

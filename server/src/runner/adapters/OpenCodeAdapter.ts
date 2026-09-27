@@ -1,7 +1,6 @@
 import { spawn } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
-import fs from 'node:fs';
 import type { RunnerAdapter, RunConfig } from '../../types/index.js';
 import { ProcessManager } from '../processManager.js';
 import { AGENTC_TURN_START, AGENTC_TURN_END } from '../reportMarkers.js';
@@ -74,20 +73,25 @@ export const OpenCodeAdapter: RunnerAdapter = {
 
       // Prompt a ser passado
       let promptText = '';
+      const taskMdPath = path.join(config.projectPath, '.agent', 'runs', config.runId, 'task.md');
+      const normalizedTaskPath = taskMdPath.replace(/\\/g, '/');
+
       if (config.resume && config.feedbackPrompt) {
-        promptText = config.feedbackPrompt;
+        promptText = config.feedbackPrompt.trim();
+        if (config.mode === 'Scout') {
+          promptText = `[MODO SCOUT / SOMENTE LEITURA - NÃO MODIFIQUE ARQUIVOS] ${promptText}`;
+        }
       } else {
-        // Lê do task.md
-        const taskMdPath = path.join(config.projectPath, '.agent', 'runs', config.runId, 'task.md');
-        if (fs.existsSync(taskMdPath)) {
-          promptText = fs.readFileSync(taskMdPath, 'utf8');
+        // Na execução inicial, passa instrução limpa e unilineada apontando para o task.md
+        // Previne que o cmd.exe do Windows quebre argumentos multiline no primeiro '\n'
+        if (config.mode === 'Scout') {
+          promptText = `[MODO SCOUT / SOMENTE LEITURA - NÃO MODIFIQUE ARQUIVOS] Execute o diagnóstico e pesquisa especificados no arquivo "${normalizedTaskPath}". Leia o arquivo atentamente com suas ferramentas e gere o relatório estritamente no caminho de report.md indicado.`;
+        } else {
+          promptText = `Execute integralmente a tarefa especificada no arquivo "${normalizedTaskPath}". Leia o arquivo atentamente com suas ferramentas, cumpra todos os objetivos, critérios de aceite e persista a entrega final no caminho de report.md indicado.`;
         }
       }
 
       if (promptText) {
-        if (config.mode === 'Scout') {
-          promptText = `[MODO SCOUT / SOMENTE LEITURA]\nATENÇÃO: Esta execução é estritamente de consulta, diagnóstico e pesquisa. É terminantemente proibido criar, alterar ou deletar arquivos no projeto.\n\n${promptText}`;
-        }
         args.push(promptText);
       }
 

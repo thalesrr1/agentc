@@ -8,6 +8,7 @@ import type {
   TaskStatus,
   UpdateTaskDTO,
   McpToolsResponse,
+  FeaturePipelineState,
 } from '../types/index.js';
 
 const API_BASE = '/api';
@@ -19,25 +20,43 @@ async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
     ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
     ...(options?.headers as Record<string, string> | undefined),
   };
-  const res = await fetch(url, {
-    ...options,
-    headers,
-  });
 
-  if (!res.ok) {
-    let errorMsg = `Erro ${res.status}: ${res.statusText}`;
-    try {
-      const body = await res.json();
-      if (body.error) {
-        errorMsg = body.error;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+  const signal = options?.signal
+    ? (typeof AbortSignal.any === 'function' ? AbortSignal.any([options.signal, controller.signal]) : controller.signal)
+    : controller.signal;
+
+  try {
+    const res = await fetch(url, {
+      ...options,
+      headers,
+      signal,
+    });
+
+    if (!res.ok) {
+      let errorMsg = `Erro ${res.status}: ${res.statusText}`;
+      try {
+        const body = await res.json();
+        if (body.error) {
+          errorMsg = body.error;
+        }
+      } catch {
+        // ignora
       }
-    } catch {
-      // ignora
+      throw new Error(errorMsg);
     }
-    throw new Error(errorMsg);
-  }
 
-  return res.json() as Promise<T>;
+    return (await res.json()) as T;
+  } catch (err: unknown) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw new Error(`Tempo limite excedido (15s) ao requisitar ${endpoint}`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 export const api = {
@@ -134,6 +153,53 @@ export const api = {
     });
   },
 
+  async startFeaturePipeline(
+    projectId: string,
+    feature: string
+  ): Promise<{ success: boolean; message: string; state: FeaturePipelineState }> {
+    return request<{ success: boolean; message: string; state: FeaturePipelineState }>(
+      `/projects/${projectId}/features/${encodeURIComponent(feature)}/start`,
+      { method: 'POST', body: JSON.stringify({}) }
+    );
+  },
+
+  async pauseFeaturePipeline(
+    projectId: string,
+    feature: string
+  ): Promise<{ success: boolean; message: string; state: FeaturePipelineState }> {
+    return request<{ success: boolean; message: string; state: FeaturePipelineState }>(
+      `/projects/${projectId}/features/${encodeURIComponent(feature)}/pause`,
+      { method: 'POST' }
+    );
+  },
+
+  async resumeFeaturePipeline(
+    projectId: string,
+    feature: string
+  ): Promise<{ success: boolean; message: string; state: FeaturePipelineState }> {
+    return request<{ success: boolean; message: string; state: FeaturePipelineState }>(
+      `/projects/${projectId}/features/${encodeURIComponent(feature)}/resume`,
+      { method: 'POST' }
+    );
+  },
+
+  async getFeaturePipelineStatus(
+    projectId: string,
+    feature: string
+  ): Promise<{ success: boolean; state: FeaturePipelineState }> {
+    return request<{ success: boolean; state: FeaturePipelineState }>(
+      `/projects/${projectId}/features/${encodeURIComponent(feature)}/status`
+    );
+  },
+
+  async listFeaturePipelines(
+    projectId: string
+  ): Promise<{ success: boolean; pipelines: FeaturePipelineState[] }> {
+    return request<{ success: boolean; pipelines: FeaturePipelineState[] }>(
+      `/projects/${projectId}/pipelines`
+    );
+  },
+
   async selectFolder(): Promise<{ path: string; name: string } | null> {
     const res = await request<{ success: boolean; path?: string; name?: string; cancelled?: boolean }>(
       '/system/select-folder',
@@ -207,4 +273,19 @@ export const api = {
   }> {
     return request(`/settings/opencode/models?provider=${encodeURIComponent(provider)}`);
   },
+
+  async openInCode(path: string): Promise<{ success: boolean; message?: string }> {
+    return request('/system/open-code', {
+      method: 'POST',
+      body: JSON.stringify({ path }),
+    });
+  },
+
+  async openInExplorer(path: string): Promise<{ success: boolean; message?: string }> {
+    return request('/system/open-explorer', {
+      method: 'POST',
+      body: JSON.stringify({ path }),
+    });
+  },
 };
+

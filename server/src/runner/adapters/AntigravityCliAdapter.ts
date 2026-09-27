@@ -6,6 +6,9 @@ import type { RunnerAdapter, RunConfig } from '../../types/index.js';
 import { ProcessManager } from '../processManager.js';
 import { AGENTC_TURN_START, AGENTC_TURN_END } from '../reportMarkers.js';
 import { isCliAvailable } from '../cliDetector.js';
+import { TaskRepository } from '../../db/repository.js';
+import { Reconciler } from '../../reconciler/index.js';
+import { eventBus } from '../../events/eventBus.js';
 
 /**
  * Normaliza qualquer especificação de modelo do AgentC para um model ID válido da CLI do Antigravity (`agy`).
@@ -129,22 +132,24 @@ export const AntigravityCliAdapter: RunnerAdapter = {
 
       // Prompt a ser passado via --print
       let promptText = '';
+      const taskMdPath = path.join(config.projectPath, '.agent', 'runs', config.runId, 'task.md');
+      const normalizedTaskPath = taskMdPath.replace(/\\/g, '/');
+
       if (config.resume && config.feedbackPrompt) {
-        promptText = config.feedbackPrompt;
+        promptText = config.feedbackPrompt.trim();
+        if (config.mode === 'Scout') {
+          promptText = `[MODO SCOUT / SOMENTE LEITURA - NÃO MODIFIQUE ARQUIVOS] ${promptText}`;
+        }
       } else {
-        const taskMdPath = path.join(config.projectPath, '.agent', 'runs', config.runId, 'task.md');
-        if (fs.existsSync(taskMdPath)) {
-          promptText = fs.readFileSync(taskMdPath, 'utf8');
+        if (config.mode === 'Scout') {
+          promptText = `[MODO SCOUT / SOMENTE LEITURA - NÃO MODIFIQUE ARQUIVOS] Execute o diagnóstico e pesquisa especificados no arquivo "${normalizedTaskPath}". Leia o arquivo atentamente com suas ferramentas e gere o relatório estritamente no caminho de report.md indicado.`;
+        } else {
+          promptText = `Execute integralmente a tarefa especificada no arquivo "${normalizedTaskPath}". Leia o arquivo atentamente com suas ferramentas, cumpra todos os objetivos, critérios de aceite e persista a entrega final no caminho de report.md indicado.`;
         }
       }
 
-      if (!promptText.trim()) {
-        promptText = `Execute a tarefa da run ${config.runId}.`;
-      }
-
-      if (config.mode === 'Scout') {
-        promptText = `[MODO SCOUT / SOMENTE LEITURA]\nATENÇÃO: Esta execução é estritamente de consulta, diagnóstico e pesquisa. É terminantemente proibido criar, alterar ou deletar arquivos no projeto.\n\n${promptText}`;
-      }
+      // Habilita streaming estruturado NDJSON para feedback em tempo real de tools, comandos e respostas
+      args.push('--output-format', 'stream-json');
 
       // IMPORTANTE: --print consome o próximo argumento como prompt na CLI do agy
       args.push('--print', promptText);
@@ -154,6 +159,8 @@ export const AntigravityCliAdapter: RunnerAdapter = {
       onChunk(AGENTC_TURN_START);
 
       let capturedSessionId: string | undefined = config.sessionId;
+      let stdoutBuffer = '';
+      let streamedDeltasCount = 0;
 
       let child;
       try {
@@ -176,15 +183,117 @@ export const AntigravityCliAdapter: RunnerAdapter = {
       ProcessManager.register(config.runId, child);
       child.stdin?.end();
 
-      child.stdout?.on('data', (data: Buffer) => {
-        const text = data.toString('utf8');
-        onChunk(text);
+      const processJsonLine = (line: string) => {
+        const trimmed = line.trim();
+        if (!trimmed) return;
 
-        // Regex para capturar conversation ID
-        const convMatch = text.match(/conversation[:\s_id"=]+([a-zA-Z0-9_-]{8,})/i) ||
-                          text.match(/conversationID[:\s]+([a-zA-Z0-9_-]+)/i);
-        if (convMatch) {
-          capturedSessionId = convMatch[1];
+        try {
+          const obj = JSON.parse(trimmed);
+
+          // 1. Evento de Inicialização do agy (captura imediata da sessão)
+          if (obj.event === 'init') {
+            const sid = obj.conversation_id || obj.init?.conversation_id;
+            if (sid) {
+              capturedSessionId = sid;
+              onChunk(`[AgentC AntigravityCliAdapter] Sessão vinculada: ${capturedSessionId}\n\n`);
+              if (config.taskId) {
+                TaskRepository.updateSessionId(config.taskId, sid);
+                Reconciler.updateRunJSON(config.projectPath, config.runId, { session_id: sid });
+                eventBus.emitEvent('BOARD_UPDATED', { taskId: config.taskId });
+              }
+            }
+            return;
+          }
+
+          // 2. Atualizações de Passos (Ferramentas, Leituras, Escritas, Comandos e Respostas)
+          if (obj.event === 'step_update') {
+            const su = obj.step_update;
+            if (!su) return;
+
+            // Início de chamada de ferramenta
+            if (su.step_type === 'tool' && su.state === 'ACTIVE') {
+              const toolName = su.tool_name || su.tool_info?.name || 'tool';
+              const params = (su.tool_info?.parameters as Record<string, any>) || {};
+
+              if (toolName === 'view_file' || toolName === 'read_file') {
+                const rawPath = String(params.AbsolutePath || params.TargetFile || params.file_path || params.path || '');
+                const relPath = path.isAbsolute(rawPath) ? path.relative(config.projectPath, rawPath) : rawPath;
+                onChunk(`→ Read ${relPath.replace(/\\/g, '/')}\n`);
+              } else if (
+                toolName === 'replace_file_content' ||
+                toolName === 'write_to_file' ||
+                toolName === 'sed_file'
+              ) {
+                const rawPath = String(params.TargetFile || params.AbsolutePath || params.file_path || '');
+                const relPath = path.isAbsolute(rawPath) ? path.relative(config.projectPath, rawPath) : rawPath;
+                onChunk(`← Edit ${relPath.replace(/\\/g, '/')}\n`);
+                if (params.Description) {
+                  onChunk(`  # ${params.Description}\n`);
+                }
+              } else if (toolName === 'run_command' || toolName === 'bash') {
+                const cmdStr = String(params.CommandLine || params.command || '');
+                onChunk(`$ ${cmdStr}\n`);
+              } else if (toolName === 'grep_search' || toolName === 'find_by_name') {
+                const query = String(params.Query || params.Pattern || '');
+                onChunk(`→ Search: ${query}\n`);
+              } else {
+                const summary = String(params.toolSummary || params.toolAction || '');
+                onChunk(`→ Tool [${toolName}]${summary ? `: ${summary}` : ''}\n`);
+              }
+              return;
+            }
+
+            // Conclusão de ferramenta com output (ex: terminal de comandos)
+            if (su.step_type === 'tool' && su.state === 'DONE') {
+              const toolName = su.tool_name || su.tool_info?.name || '';
+              if (toolName === 'run_command' || toolName === 'bash') {
+                const out = su.tool_info?.output;
+                if (out && typeof out === 'string') {
+                  const previewLines = out.trim().split('\n').slice(0, 8);
+                  if (previewLines.length > 0) {
+                    onChunk(previewLines.map((l: string) => `  ${l}`).join('\n') + '\n');
+                  }
+                }
+              }
+              return;
+            }
+
+            // Streaming em tempo real de tokens de resposta do modelo
+            if (su.step_type === 'agent_response' && su.text_delta) {
+              onChunk(su.text_delta);
+              streamedDeltasCount += su.text_delta.length;
+              return;
+            }
+
+            return;
+          }
+
+          // 3. Resultado Final do Turno
+          if (obj.event === 'result') {
+            if (obj.result?.conversation_id && !capturedSessionId) {
+              capturedSessionId = obj.result.conversation_id;
+            }
+            // Se nenhum delta foi transmitido ao vivo, imprime a resposta consolidada
+            if (streamedDeltasCount === 0 && obj.result?.response) {
+              onChunk(obj.result.response);
+              if (!obj.result.response.endsWith('\n')) {
+                onChunk('\n');
+              }
+            }
+            return;
+          }
+        } catch {
+          // Se não for JSON (ex: warning ou erro do próprio processo), transmite diretamente
+          onChunk(trimmed + '\n');
+        }
+      };
+
+      child.stdout?.on('data', (data: Buffer) => {
+        stdoutBuffer += data.toString('utf8');
+        const lines = stdoutBuffer.split('\n');
+        stdoutBuffer = lines.pop() || '';
+        for (const line of lines) {
+          processJsonLine(line);
         }
       });
 
@@ -199,9 +308,18 @@ export const AntigravityCliAdapter: RunnerAdapter = {
       });
 
       child.on('close', (code) => {
+        if (stdoutBuffer.trim()) {
+          processJsonLine(stdoutBuffer);
+          stdoutBuffer = '';
+        }
         const exitCode = code ?? 0;
         if (!capturedSessionId) {
           capturedSessionId = findLatestSessionId(startTime);
+        }
+        if (capturedSessionId && config.taskId) {
+          TaskRepository.updateSessionId(config.taskId, capturedSessionId);
+          Reconciler.updateRunJSON(config.projectPath, config.runId, { session_id: capturedSessionId });
+          eventBus.emitEvent('BOARD_UPDATED', { taskId: config.taskId });
         }
         onChunk(AGENTC_TURN_END);
         onChunk(`\n[AgentC AntigravityCliAdapter] Processo concluído com código de saída ${exitCode}\n`);

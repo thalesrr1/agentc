@@ -1,10 +1,12 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useProjects } from './hooks/useProjects.js';
 import { useBoard } from './hooks/useBoard.js';
+import { useProjectPipelines } from './hooks/useProjectPipelines.js';
 import { Sidebar } from './components/layout/Sidebar.js';
 import { Topbar } from './components/layout/Topbar.js';
 import { Board } from './components/kanban/Board.js';
 import { BoardFilterBar, type DateFilterOption } from './components/kanban/BoardFilterBar.js';
+import { FeaturePipelinesContainer } from './components/kanban/FeaturePipelinesContainer.js';
 import { InspectionDrawer } from './components/inspection/InspectionDrawer.js';
 import { NewProjectModal } from './components/modals/NewProjectModal.js';
 import { NewTaskModal } from './components/modals/NewTaskModal.js';
@@ -13,6 +15,9 @@ import { HideProjectModal } from './components/modals/HideProjectModal.js';
 import { HiddenProjectsModal } from './components/modals/HiddenProjectsModal.js';
 import { DeleteProjectPermanentModal } from './components/modals/DeleteProjectPermanentModal.js';
 import { McpToolsModal } from './components/modals/McpToolsModal.js';
+import { PWAInstallBanner } from './components/pwa/PWAInstallBanner.js';
+import { PWAUpdateBanner } from './components/pwa/PWAUpdateBanner.js';
+import { ServerOfflineBanner } from './components/pwa/ServerOfflineBanner.js';
 import { api } from './services/api.js';
 import type { Task, RunnerType, Project } from './types/index.js';
 
@@ -88,6 +93,60 @@ export function App() {
   // Motor de execução ativo (OpenCode ou Antigravity CLI com modelo configurado)
   const [activeRunner, setActiveRunner] = useState<RunnerType>('opencode');
   const [activeModel, setActiveModel] = useState<string>('minimax/MiniMax-M3');
+
+  // Hook de Feature Pipelines — gerencia todas as esteiras do projeto ativo
+  const projectPipelines = useProjectPipelines(activeProject?.id ?? null);
+
+  const handlePipelineStart = useCallback(
+    async (feature: string) => {
+      if (!activeProject || !feature) return;
+      try {
+        await projectPipelines.start(feature);
+        await refreshBoard();
+        showToast({
+          text: `Pipeline "${feature}" iniciada em background.`,
+        });
+      } catch (err) {
+        showToast({
+          text: `Falha ao iniciar pipeline: ${String(err)}`,
+          durationMs: 8000,
+        });
+      }
+    },
+    [activeProject, projectPipelines, refreshBoard, showToast]
+  );
+
+  const handlePipelinePause = useCallback(
+    async (feature: string) => {
+      if (!activeProject || !feature) return;
+      try {
+        const res = await projectPipelines.pause(feature);
+        await refreshBoard();
+        if (res && res.state.status === 'paused') {
+          showToast({ text: `Pipeline "${feature}" pausada.` });
+        } else {
+          showToast({ text: `Pipeline "${feature}" será pausada após a tarefa atual.` });
+        }
+      } catch (err) {
+        showToast({ text: `Falha ao pausar: ${String(err)}`, durationMs: 8000 });
+      }
+    },
+    [activeProject, projectPipelines, refreshBoard, showToast]
+  );
+
+  const handlePipelineResume = useCallback(
+    async (feature: string) => {
+      if (!activeProject || !feature) return;
+      try {
+        await projectPipelines.resume(feature);
+        await refreshBoard();
+        showToast({ text: `Pipeline "${feature}" retomada.` });
+      } catch (err) {
+        showToast({ text: `Falha ao retomar: ${String(err)}`, durationMs: 8000 });
+      }
+    },
+    [activeProject, projectPipelines, refreshBoard, showToast]
+  );
 
   // Carrega motor ativo para o projeto selecionado
   const loadEngineSettings = async () => {
@@ -176,10 +235,26 @@ export function App() {
     return {
       ...boardData,
       columns: {
-        backlog: boardData.columns.backlog.filter(matchTask),
+        backlog: [...boardData.columns.backlog.filter(matchTask)].sort((a, b) => {
+          const featA = a.feature || '';
+          const featB = b.feature || '';
+          if (featA !== featB) {
+            return featA.localeCompare(featB);
+          }
+          const orderA = typeof a.order_index === 'number' ? a.order_index : 9999;
+          const orderB = typeof b.order_index === 'number' ? b.order_index : 9999;
+          if (orderA !== orderB) {
+            return orderA - orderB;
+          }
+          return a.created_at.localeCompare(b.created_at);
+        }),
         running: boardData.columns.running.filter(matchTask),
         review: boardData.columns.review.filter(matchTask),
-        done: boardData.columns.done.filter(matchTask),
+        done: [...boardData.columns.done.filter(matchTask)].sort((a, b) => {
+          const timeA = a.completed_at || a.created_at;
+          const timeB = b.completed_at || b.created_at;
+          return timeB.localeCompare(timeA);
+        }),
       },
     };
   }, [boardData, searchQuery, selectedFeature, selectedDate]);
@@ -329,6 +404,7 @@ export function App() {
           onOpenMcpModal={() => setIsMcpModalOpen(true)}
           onRefresh={handleRefresh}
           isRefreshing={boardLoading}
+          onToast={(text) => showToast({ text })}
         />
 
         {/* Barra de Filtros Personalizados do Kanban */}
@@ -344,6 +420,22 @@ export function App() {
             totalTasksCount={totalTasksCount}
             filteredTasksCount={filteredTasksCount}
             onResetFilters={handleResetFilters}
+          />
+        )}
+
+        {/* Container de Feature Pipelines (visível se houver feature filtrada ou se houver pipelines executando no projeto) */}
+        {activeProject && (
+          <FeaturePipelinesContainer
+            pipelines={projectPipelines.pipelines}
+            boardTasks={allBoardTasks}
+            selectedFeature={selectedFeature}
+            onSelectFeature={(feat) => setSelectedFeature(feat)}
+            onClearFilter={() => setSelectedFeature('all')}
+            onStart={handlePipelineStart}
+            onPause={handlePipelinePause}
+            onResume={handlePipelineResume}
+            busyFeature={projectPipelines.busyFeature}
+            error={projectPipelines.error}
           />
         )}
 
@@ -363,7 +455,26 @@ export function App() {
       <InspectionDrawer
         task={selectedTask}
         onClose={() => setSelectedTask(null)}
-        onUpdateStatus={updateStatus}
+        onUpdateStatus={async (taskId, status) => {
+          await updateStatus(taskId, status);
+          if (status === 'done') {
+            showToast({
+              text: 'Tarefa aprovada e concluída com sucesso.',
+              actionLabel: 'Desfazer',
+              onAction: async () => {
+                await updateStatus(taskId, 'review');
+              },
+            });
+          } else if (status === 'backlog') {
+            showToast({
+              text: 'Tarefa movida para A Fazer (Backlog).',
+            });
+          } else if (status === 'review') {
+            showToast({
+              text: 'Tarefa movida para Revisão & Decisão.',
+            });
+          }
+        }}
         onStartTask={startTask}
         onCancelTask={cancelTask}
         onTaskUpdated={() => refreshBoard()}
@@ -426,6 +537,12 @@ export function App() {
         onClose={() => setProjectToDeletePermanent(null)}
         onConfirm={handleConfirmPermanentDelete}
       />
+
+      {/* Banners PWA — instalação, atualização do Service Worker e
+          status do servidor local Fastify. */}
+      <PWAInstallBanner />
+      <PWAUpdateBanner />
+      <ServerOfflineBanner />
 
       {/* Toast Flutuante com Suporte a Desfazer */}
       {toastMessage && (

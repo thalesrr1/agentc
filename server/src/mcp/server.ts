@@ -11,6 +11,7 @@ import { Reconciler } from '../reconciler/index.js';
 import { RunnerEngine } from '../runner/index.js';
 import { GitService } from '../runner/git.js';
 import { ProcessManager } from '../runner/processManager.js';
+import { PipelineEngine } from '../runner/pipeline.js';
 import { getDb } from '../db/connection.js';
 import { CONFIG } from '../config.js';
 import type { AgentCEventType } from '../events/eventBus.js';
@@ -290,6 +291,7 @@ export function createMcpServer(): Server {
               thinking: z.boolean().optional(),
               prompt: z.string(),
               guardrails: z.string().optional(),
+              verify_command: z.string().optional(),
             })
           ),
         });
@@ -298,11 +300,23 @@ export function createMcpServer(): Server {
         const project = ensureProject(absPath);
 
         const createdTasks = [];
-        for (const t of tasks) {
+        // Auto-atribui order_index conforme sequência do array, habilitando o Feature Pipeline.
+        for (let i = 0; i < tasks.length; i++) {
+          const t = tasks[i];
+          if (!t) continue;
           const taskFeature = t.feature?.trim() || planFeature?.trim() || undefined;
           const created = Reconciler.createTaskOnDisk(project.id, project.path, {
-            ...t,
+            title: t.title,
+            mode: t.mode,
             feature: taskFeature,
+            runner: t.runner,
+            model: t.model,
+            variant: t.variant,
+            thinking: t.thinking,
+            prompt: t.prompt,
+            guardrails: t.guardrails,
+            order_index: i,
+            verify_command: t.verify_command,
           });
           createdTasks.push({
             id: created.id,
@@ -311,6 +325,8 @@ export function createMcpServer(): Server {
             mode: created.mode,
             status: created.status,
             feature: created.feature,
+            order_index: created.order_index,
+            verify_command: created.verify_command,
             reused: Boolean((created as any).reused),
           });
         }
@@ -328,7 +344,10 @@ export function createMcpServer(): Server {
                 {
                   success: true,
                   count: createdTasks.length,
+                  feature: planFeature ?? null,
                   tasks: createdTasks,
+                  message:
+                    'Plano registrado. Use agentc_start_feature para acionar a esteira autônoma.',
                 },
                 null,
                 2
@@ -765,6 +784,179 @@ export function createMcpServer(): Server {
             },
           ],
         };
+      }
+
+      if (name === 'agentc_start_feature') {
+        const schema = z.object({
+          project_path: z.string(),
+          feature: z.string().min(1),
+          wait: z.boolean().optional().default(false),
+        });
+        const { project_path, feature, wait } = schema.parse(args);
+        const absPath = path.resolve(project_path);
+        const project = ensureProject(absPath);
+
+        let state;
+        try {
+          state = await PipelineEngine.start(project.id, feature);
+        } catch (err) {
+          throw new Error(`Falha ao iniciar pipeline: ${String(err)}`);
+        }
+
+        await notifyFastify([
+          { type: 'BOARD_UPDATED', projectId: project.id },
+          { type: 'PROJECTS_UPDATED' },
+        ]);
+
+        if (wait === false) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(
+                  {
+                    success: true,
+                    dispatched: true,
+                    pipeline: state,
+                    message: `Feature Pipeline para "${feature}" iniciada em background (${state.total_tasks} tarefa(s) enfileiradas). O loop avança sozinho localmente; consulte agentc_get_feature_status ou os eventos SSE (PIPELINE_*) para monitorar.`,
+                  },
+                  null,
+                  2
+                ),
+              },
+            ],
+          };
+        }
+
+        // Modo síncrono: aguarda até estado terminal (completed/failed) com timeout duro.
+        const SYNC_TIMEOUT_MS = 30 * 60 * 1000; // 30 min — limite confortável para sync
+        const startTime = Date.now();
+        const deadline = startTime + SYNC_TIMEOUT_MS;
+        let currentState = state;
+        while (currentState.status === 'running' && Date.now() < deadline) {
+          await new Promise((r) => setTimeout(r, 1500));
+          currentState = PipelineEngine.getStatus(project.id, feature);
+        }
+
+        Reconciler.reconcileProject(project.id, absPath);
+        const finalState = PipelineEngine.getStatus(project.id, feature);
+
+        await notifyFastify([
+          { type: 'BOARD_UPDATED', projectId: project.id },
+          { type: 'PROJECTS_UPDATED' },
+        ]);
+
+        const durationSeconds = Math.round((Date.now() - startTime) / 1000);
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(
+                {
+                  success: finalState.status === 'completed',
+                  pipeline: finalState,
+                  duration_seconds: durationSeconds,
+                  message:
+                    finalState.status === 'completed'
+                      ? `Pipeline "${feature}" concluída com sucesso (${finalState.completed_tasks}/${finalState.total_tasks}).`
+                      : finalState.status === 'failed'
+                        ? `Pipeline "${feature}" halted pelo Circuit Breaker: ${finalState.halt_reason ?? 'motivo desconhecido'}. Tarefa com falha: ${finalState.failed_task_id}.`
+                        : `Pipeline "${feature}" ainda em execução após ${durationSeconds}s. Consulte agentc_get_feature_status para detalhes.`,
+                },
+                null,
+                2
+              ),
+            },
+          ],
+        };
+      }
+
+      if (name === 'agentc_get_feature_status') {
+        const schema = z.object({
+          project_path: z.string(),
+          feature: z.string().min(1),
+        });
+        const { project_path, feature } = schema.parse(args);
+        const absPath = path.resolve(project_path);
+        const project = ensureProject(absPath);
+        Reconciler.reconcileProject(project.id, absPath);
+
+        const state = PipelineEngine.getStatus(project.id, feature);
+        return {
+          content: [{ type: 'text', text: JSON.stringify({ success: true, pipeline: state }, null, 2) }],
+        };
+      }
+
+      if (name === 'agentc_pause_feature') {
+        const schema = z.object({
+          project_path: z.string(),
+          feature: z.string().min(1),
+        });
+        const { project_path, feature } = schema.parse(args);
+        const absPath = path.resolve(project_path);
+        const project = ensureProject(absPath);
+
+        try {
+          const state = PipelineEngine.pause(project.id, feature);
+          await notifyFastify([
+            { type: 'BOARD_UPDATED', projectId: project.id },
+            { type: 'PROJECTS_UPDATED' },
+          ]);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(
+                  {
+                    success: true,
+                    pipeline: state,
+                    message: `Pipeline "${feature}" pausada. A tarefa atual terminará naturalmente; a esteira não avançará para a próxima.`,
+                  },
+                  null,
+                  2
+                ),
+              },
+            ],
+          };
+        } catch (err) {
+          throw new Error(`Falha ao pausar pipeline: ${String(err)}`);
+        }
+      }
+
+      if (name === 'agentc_resume_feature') {
+        const schema = z.object({
+          project_path: z.string(),
+          feature: z.string().min(1),
+        });
+        const { project_path, feature } = schema.parse(args);
+        const absPath = path.resolve(project_path);
+        const project = ensureProject(absPath);
+
+        try {
+          const state = await PipelineEngine.resume(project.id, feature);
+          await notifyFastify([
+            { type: 'BOARD_UPDATED', projectId: project.id },
+            { type: 'PROJECTS_UPDATED' },
+          ]);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(
+                  {
+                    success: true,
+                    pipeline: state,
+                    message: `Pipeline "${feature}" retomada. Tarefas pendentes: ${state.pending_task_ids.length}.`,
+                  },
+                  null,
+                  2
+                ),
+              },
+            ],
+          };
+        } catch (err) {
+          throw new Error(`Falha ao retomar pipeline: ${String(err)}`);
+        }
       }
 
       throw new Error(`Unknown tool: ${name}`);

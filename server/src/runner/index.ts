@@ -1,4 +1,4 @@
-import type { RunnerAdapter, RunnerType, RunConfig, TaskStatus, ReportSource, GitBaseline } from '../types/index.js';
+import type { RunnerAdapter, RunnerType, RunConfig, TaskStatus, ReportSource, GitBaseline, Task } from '../types/index.js';
 import { OpenCodeAdapter } from './adapters/OpenCodeAdapter.js';
 import { AntigravityCliAdapter } from './adapters/AntigravityCliAdapter.js';
 import { GitService } from './git.js';
@@ -10,6 +10,13 @@ import { eventBus } from '../events/eventBus.js';
 import { extractAssistantFinal } from './reportExtractor.js';
 import fs from 'node:fs';
 import path from 'node:path';
+
+/**
+ * Callback invocado após a conclusão completa de uma tarefa (worker + pós-processamento).
+ * Disparado sempre, inclusive em casos de cancelamento ou erro. Usado pelo Pipeline Engine
+ * para avançar a esteira ou acionar o circuit breaker.
+ */
+export type TaskCompletionCallback = (task: Task) => void | Promise<void>;
 
 const adapters: Record<RunnerType, RunnerAdapter> = {
   opencode: OpenCodeAdapter,
@@ -30,7 +37,12 @@ export const RunnerEngine = {
    */
   async startTask(
     taskId: string,
-    options?: { resume?: boolean; feedbackPrompt?: string; autoComplete?: boolean }
+    options?: {
+      resume?: boolean;
+      feedbackPrompt?: string;
+      autoComplete?: boolean;
+      onComplete?: TaskCompletionCallback;
+    }
   ): Promise<{ queued: boolean; position: number }> {
     const task = TaskRepository.getById(taskId);
     if (!task) {
@@ -52,10 +64,28 @@ export const RunnerEngine = {
     }
 
     // Marca imediatamente a tarefa em execução e limpa conclusão residual da run anterior
+    const initialStartedAt = new Date().toISOString();
     TaskRepository.resetForExecution(taskId);
     Reconciler.updateRunJSON(project.path, task.run_id, {
       status: 'running',
+      started_at: initialStartedAt,
+      completed_at: undefined,
+      exit_code: undefined,
     });
+
+    // Se não for retomada (-Resume), reseta o execution.log anterior para começar limpo
+    if (!options?.resume) {
+      const logPath = path.join(project.path, '.agent', 'runs', task.run_id, 'execution.log');
+      try {
+        if (fs.existsSync(path.dirname(logPath))) {
+          fs.writeFileSync(logPath, '', 'utf8');
+        }
+      } catch (err) {
+        console.error('Erro ao limpar execution.log anterior:', err);
+      }
+      ProcessManager.emitChunk(task.run_id, '__AGENTC_LOG_RESET__');
+    }
+
     eventBus.emitEvent('BOARD_UPDATED', { projectId: project.id, taskId });
     eventBus.emitEvent('PROJECTS_UPDATED');
 
@@ -78,6 +108,8 @@ export const RunnerEngine = {
           status: 'running',
           started_at: startedAt,
           git_baseline: initialBaseline,
+          completed_at: undefined,
+          exit_code: undefined,
         });
 
         eventBus.emitEvent('BOARD_UPDATED', { projectId: project.id, taskId });
@@ -90,6 +122,7 @@ export const RunnerEngine = {
         };
 
         const runConfig: RunConfig = {
+          taskId: task.id,
           runId: task.run_id,
           projectPath: project.path,
           mode: task.mode,
@@ -260,6 +293,18 @@ export const RunnerEngine = {
         eventBus.emitEvent('BOARD_UPDATED', { projectId: project.id, taskId });
         eventBus.emitEvent('PROJECTS_UPDATED');
         eventBus.emitEvent('QUEUE_UPDATED', { projectId: project.id });
+
+        // Notifica observadores externos (ex: Pipeline Engine) sobre a conclusão final
+        if (options?.onComplete) {
+          try {
+            const finalTask = TaskRepository.getById(taskId);
+            if (finalTask) {
+              await options.onComplete(finalTask);
+            }
+          } catch (cbErr) {
+            console.error(`[RunnerEngine] Erro no callback onComplete da tarefa ${taskId}:`, cbErr);
+          }
+        }
       }
     };
 

@@ -313,3 +313,60 @@ client/src/
 | **Fase 2: Frontend Kanban & Live Logs** | Interface Vite + React + Tailwind, sidebar com contadores agregados por projeto, Kanban responsivo e streaming SSE no TerminalViewer. |
 | **Fase 3: Inspeção, Retomada & Targeted Diff** | Gaveta de inspeção (Drawer) com `ReportViewer`, cálculo cirúrgico de `affected_files`, `TargetedDiffViewer` e fluxo de retomada com input de `feedback_prompt`. |
 | **Fase 4: Multi-CLI & Servidor MCP** | Adição do `AntigravityCliAdapter` (Gemini Flash), implementação completa das 6 ferramentas MCP e validação do fluxo autônomo ponta a ponta. |
+| **Fase 5: Feature Pipeline Runner (Ralph Loop)** | Automação sequencial ponta a ponta de módulos/features, ordenação (`order_index`), quality gates determinísticos (`verify_command`), circuit breaker de segurança e novas MCP tools (`agentc_start_feature`). |
+
+---
+
+## 8. Esteira de Execução Autônoma de Features (Feature Pipeline Runner & Ralph Loop)
+
+### 8.1. Princípio Arquitetural
+Inspirado no paradigma **Ralph Wiggum** (ciclos contínuos em instâncias efêmeras), o AgentC desacopla o **Agente Arquiteto** (Antigravity/LLM de Alto Raciocínio) do **Motor Executor Contínuo** (OpenCode + MiniMax-M3).
+
+1. **Estado no Repositório & DB:** O progresso vive em `run.json`, `task.md`, `report.md`, `git status` e nos testes de software.
+2. **Contexto Limpo por Tarefa:** Cada tarefa roda em um subprocesso CLI isolado, eliminando degradação de contexto e poluição da janela de chat do orquestrador.
+3. **Desacoplamento de ACI (Zero MCP Timeout):** O orquestrador dispara a feature com `agentc_start_feature` em modo assíncrono/desacoplado (`wait: false`), retornando imediatamente. O loop avança sozinho localmente.
+
+### 8.2. Extensão do Modelo de Dados
+- **Tabela `tasks` / `RunJSON`:**
+  - `order_index`: `INTEGER DEFAULT 0` (posição cronológica de execução dentro da feature).
+  - `verify_command`: `TEXT` (comando de verificação determinístico opcional, ex: `npm run build && npm test`).
+- **Estado do Pipeline em Memória & DB:**
+  - `pipeline_status`: `'idle' | 'running' | 'paused' | 'completed' | 'failed'`
+  - `current_task_id`: ID da tarefa atualmente em execução.
+
+### 8.3. Ciclo de Vida do Pipeline (Máquina de Estados)
+```mermaid
+flowchart TD
+    A[Disparo: agentc_start_feature ou Botao UI] --> B[Identifica tarefas da Feature no Backlog ordenadas por order_index]
+    B --> C{Existem tarefas pendentes?}
+    C -- Nao --> D[Finaliza Pipeline: Emite FEATURE_COMPLETED & Notifica]
+    C -- Sim --> E[Seleciona a proxima tarefa: order_index N]
+    E --> F[Dispara RunnerEngine com processo limpo MiniMax-M3]
+    F --> G[Acompanha conclusao do processo: exit_code]
+    G --> H{exit_code == 0?}
+    H -- Nao --> I[Circuit Breaker Ativado: Pausa Pipeline & Status error/review]
+    H -- Sim --> J{verify_command definido?}
+    J -- Nao --> K[Auto-complete: Marca done]
+    J -- Sim --> L[Executa verify_command no diretorio do projeto]
+    L --> M{Verificacao passou?}
+    M -- Nao --> N[Circuit Breaker Ativado: Marca review com log de erro do teste]
+    M -- Sim --> K
+    K --> O[Persiste diff e git baseline]
+    O --> C
+```
+
+### 8.4. Quality Gates & Circuit Breaker
+Para evitar a propagação de erros em cascata (trade-off de rodar tarefas autônomas sem intervenção humana):
+1. **Verificação Determinística Local:** Se fornecido `verify_command`, o backend AgentC roda o comando diretamente no terminal antes de promover a tarefa para `done`.
+2. **Circuit Breaker:** Se o worker falhar (`exit_code != 0`) ou o teste quebrar, o pipeline é pausado na hora. O AgentC emite o evento `PIPELINE_HALTED` no SSE e mantém a tarefa com erro para inspeção no Kanban, impedindo o desperdício de tokens nas tarefas subsequentes.
+
+### 8.5. Novas Ferramentas MCP
+1. `agentc_create_plan`: Atualizado para atribuir automaticamente `order_index = 0, 1, 2...` baseado na sequência do array de tarefas, com suporte a `verify_command`.
+2. `agentc_start_feature`: Inicia a esteira autônoma da feature no projeto de forma desacoplada (`wait: false` por padrão) ou síncrona.
+3. `agentc_get_feature_status`: Retorna o progresso consolidado do pipeline da feature (tarefas concluídas, ativa, pendentes e percentual de progresso).
+
+### 8.6. Interface do Usuário (Kanban UI)
+- **Tag de Ordem:** Cada card do Kanban exibe seu badge de sequência `#1`, `#2`, `#3` antes do título.
+- **Ação Rápida por Feature:** Na barra de filtros, ao selecionar uma feature (ou no cabeçalho do grupo), exibe o botão `[▶ Executar Feature]` e `[⏹ Pausar]`.
+- **Status Visual do Pipeline:** Banner ou badge animado indicando que a feature está em execução autônoma contínua.
+

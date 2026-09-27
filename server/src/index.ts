@@ -9,8 +9,10 @@ import { logsRoutes } from './routes/logs.js';
 import { eventsRoutes } from './routes/events.js';
 import { systemRoutes } from './routes/system.js';
 import { settingsRoutes } from './routes/settings.js';
+import { pipelinesRoutes } from './routes/pipelines.js';
 import { TaskRepository } from './db/repository.js';
 import { ProcessManager } from './runner/processManager.js';
+import { PipelineEngine } from './runner/pipeline.js';
 
 export async function createServer() {
   const fastify = Fastify({
@@ -25,8 +27,9 @@ export async function createServer() {
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   });
 
-  // Inicializa banco SQLite e auto-cura de tarefas órfãs
+  // Inicializa banco SQLite, reconciliação de disco e motor de pipelines
   getDb();
+  PipelineEngine.init();
   TaskRepository.resetOrphanedRunningTasks();
 
   // Registro de rotas REST e SSE
@@ -37,6 +40,7 @@ export async function createServer() {
   await fastify.register(eventsRoutes, { prefix: '/api' });
   await fastify.register(systemRoutes, { prefix: '/api/system' });
   await fastify.register(settingsRoutes, { prefix: '/api/settings' });
+  await fastify.register(pipelinesRoutes, { prefix: '/api' });
 
   // Rota de Healthcheck
   fastify.get('/api/health', async () => {

@@ -76,7 +76,9 @@ export const logsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =
 
     // 3. Registra listener em tempo real
     const unsubscribe = ProcessManager.addListener(task.run_id, (chunk: string) => {
-      if (chunk.startsWith('__AGENTC_RUN_COMPLETE__:')) {
+      if (chunk === '__AGENTC_LOG_RESET__') {
+        sendEvent('reset', {});
+      } else if (chunk.startsWith('__AGENTC_RUN_COMPLETE__:')) {
         const exitCode = parseInt(chunk.split(':')[1] || '0', 10);
         sendEvent('status', { running: false, exitCode });
         sendEvent('end', { exitCode });
