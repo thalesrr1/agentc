@@ -44,7 +44,8 @@ export function useProjects() {
               prevActive.review_count === found.review_count &&
               prevActive.backlog_count === found.backlog_count &&
               prevActive.done_count === found.done_count &&
-              prevActive.updated_at === found.updated_at
+              prevActive.updated_at === found.updated_at &&
+              JSON.stringify(prevActive.active_pipeline) === JSON.stringify(found.active_pipeline)
             ) {
               return prevActive;
             }

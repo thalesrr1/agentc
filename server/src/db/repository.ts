@@ -1,5 +1,5 @@
 import { getDb } from './connection.js';
-import type { Project, Task, TaskStatus, RunJSON, FeaturePipelineState } from '../types/index.js';
+import type { Project, Task, TaskStatus, RunJSON, FeaturePipelineState, ActivePipelineSummary } from '../types/index.js';
 
 // Utilitário para mapear linha do banco para interface Task
 interface TaskRow {
@@ -100,18 +100,56 @@ export const ProjectRepository = {
       done_count: number;
     }>;
 
-    return rows.map((r) => ({
-      id: r.id,
-      name: r.name,
-      path: r.path,
-      created_at: r.created_at,
-      updated_at: r.updated_at,
-      hidden_at: r.hidden_at,
-      backlog_count: r.backlog_count ?? 0,
-      running_count: r.running_count ?? 0,
-      review_count: r.review_count ?? 0,
-      done_count: r.done_count ?? 0,
-    }));
+    return rows.map((r) => {
+      let active_pipeline: ActivePipelineSummary | null = null;
+      if (r.running_count > 0) {
+        try {
+          const runningTask = db.prepare(`
+            SELECT feature, order_index 
+            FROM tasks 
+            WHERE project_id = ? AND status = 'running' AND feature IS NOT NULL AND TRIM(feature) != ''
+            LIMIT 1
+          `).get(r.id) as { feature: string; order_index: number | null } | undefined;
+
+          if (runningTask && runningTask.feature) {
+            const stats = db.prepare(`
+              SELECT 
+                COUNT(*) as total,
+                SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END) as done
+              FROM tasks 
+              WHERE project_id = ? AND LOWER(TRIM(feature)) = LOWER(TRIM(?))
+            `).get(r.id, runningTask.feature) as { total: number; done: number };
+
+            const step = typeof runningTask.order_index === 'number'
+              ? runningTask.order_index + 1
+              : (stats.done || 0) + 1;
+
+            active_pipeline = {
+              feature: runningTask.feature.trim(),
+              step,
+              total: stats.total,
+              status: 'running',
+            };
+          }
+        } catch {
+          // Fallback seguro caso ocorra erro transitório
+        }
+      }
+
+      return {
+        id: r.id,
+        name: r.name,
+        path: r.path,
+        created_at: r.created_at,
+        updated_at: r.updated_at,
+        hidden_at: r.hidden_at,
+        backlog_count: r.backlog_count ?? 0,
+        running_count: r.running_count ?? 0,
+        review_count: r.review_count ?? 0,
+        done_count: r.done_count ?? 0,
+        active_pipeline,
+      };
+    });
   },
 
   listHidden(): Project[] {

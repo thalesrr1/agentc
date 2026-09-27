@@ -79,6 +79,13 @@ export interface RunJSON {
   completed_at?: string;
 }
 
+export interface ActivePipelineSummary {
+  feature: string;
+  step: number;
+  total: number;
+  status: 'running' | 'paused';
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -91,6 +98,7 @@ export interface Project {
   running_count?: number;
   review_count?: number;
   done_count?: number;
+  active_pipeline?: ActivePipelineSummary | null;
 }
 
 export interface Task {

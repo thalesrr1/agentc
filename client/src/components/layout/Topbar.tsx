@@ -7,6 +7,7 @@ import {
   RefreshCw,
   Settings,
   FolderOpen,
+  PanelLeftOpen,
 } from 'lucide-react';
 import type { Project, QueueStatus, RunnerType } from '../../types/index.js';
 import { RunnerBadge } from '../icons/RunnerBadge.js';
@@ -24,6 +25,8 @@ interface TopbarProps {
   onRefresh: () => void;
   isRefreshing?: boolean;
   onToast?: (message: string) => void;
+  isSidebarCollapsed?: boolean;
+  onToggleSidebar?: () => void;
 }
 
 export const Topbar: React.FC<TopbarProps> = ({
@@ -37,6 +40,8 @@ export const Topbar: React.FC<TopbarProps> = ({
   onRefresh,
   isRefreshing = false,
   onToast,
+  isSidebarCollapsed = false,
+  onToggleSidebar,
 }) => {
   const [copied, setCopied] = useState(false);
   const [openedCode, setOpenedCode] = useState(false);
@@ -80,36 +85,60 @@ export const Topbar: React.FC<TopbarProps> = ({
   const waitingCount = queueStatus?.waitingCount ?? 0;
 
   return (
-    <header className="h-13 bg-[#09090b]/90 backdrop-blur-md border-b border-zinc-800/80 px-5 flex items-center justify-between select-none shrink-0 z-10">
-      {/* 1. Projeto Ativo, Caminho & Ações Rápidas (VS Code / Explorer / Copiar) */}
-      <div className="flex items-center gap-2.5 min-w-0">
-        <h1 className="text-[13px] font-semibold text-zinc-100 tracking-tight truncate">
-          {project ? project.name : 'Nenhum Projeto Selecionado'}
-        </h1>
+    <header className="h-13 bg-[#09090b]/90 backdrop-blur-md border-b border-zinc-800/80 px-4 sm:px-5 flex items-center justify-between select-none shrink-0 z-10 gap-3">
+      {/* 1. Projeto Ativo, Caminho & Ações Rápidas */}
+      <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden pr-1">
+        {/* Botão de re-abrir sidebar (visível APENAS quando a sidebar estiver colapsada, evitando duplicação) */}
+        {isSidebarCollapsed && onToggleSidebar && (
+          <button
+            type="button"
+            onClick={onToggleSidebar}
+            title="Expandir barra lateral (Ctrl+B)"
+            className="p-1.5 rounded-md text-zinc-300 hover:text-white bg-zinc-800/80 hover:bg-zinc-700/80 transition-colors cursor-pointer shrink-0"
+          >
+            <PanelLeftOpen className="w-4 h-4" />
+          </button>
+        )}
+
+        {/* Nome do projeto ativo (visível APENAS quando a sidebar estiver colapsada) */}
+        {isSidebarCollapsed && (
+          <h1 className="text-[13px] font-semibold text-zinc-100 tracking-tight truncate shrink-0 max-w-[140px] sm:max-w-[200px]">
+            {project ? project.name : 'Nenhum Projeto Selecionado'}
+          </h1>
+        )}
 
         {project && (
-          <div className="flex items-center rounded-md border border-zinc-800/80 bg-zinc-900/60 p-0.5 text-xs">
+          <div className="flex items-center rounded-md border border-zinc-800/80 bg-zinc-900/60 p-0.5 text-xs shrink-0">
             {/* Exibição do caminho e botão de cópia */}
             <button
               onClick={handleCopyPath}
-              title="Copiar caminho absoluto do repositório"
-              className="flex items-center gap-1.5 px-2 py-0.5 rounded text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60 font-mono text-[11px] transition-colors"
+              title={`Copiar caminho absoluto: ${project.path}`}
+              className="flex items-center gap-1.5 px-2 py-0.5 rounded text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60 font-mono text-[11px] transition-colors shrink-0 cursor-pointer"
             >
-              <span className="truncate max-w-[210px]">{project.path}</span>
+              {/* O caminho em texto é exibido quando houver espaço generoso; caso contrário exibe o ícone de cópia direto */}
+              <span
+                className={`truncate ${
+                  isSidebarCollapsed
+                    ? 'hidden md:inline-block max-w-[160px] lg:max-w-[240px]'
+                    : 'hidden 2xl:inline-block max-w-[200px]'
+                }`}
+              >
+                {project.path}
+              </span>
               {copied ? (
-                <Check className="w-3 h-3 text-emerald-400 shrink-0" />
+                <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
               ) : (
-                <Copy className="w-3 h-3 text-zinc-500 shrink-0" />
+                <Copy className="w-3.5 h-3.5 text-zinc-400 hover:text-zinc-200 shrink-0" />
               )}
             </button>
 
-            <div className="h-3 w-px bg-zinc-800 mx-0.5" />
+            <div className="h-3 w-px bg-zinc-800 mx-0.5 shrink-0" />
 
             {/* Abrir no VS Code */}
             <button
               onClick={handleOpenInCode}
               title="Abrir projeto no VS Code"
-              className="p-1 rounded text-zinc-400 hover:text-sky-400 hover:bg-zinc-800/80 transition-colors"
+              className="p-1 rounded text-zinc-400 hover:text-sky-400 hover:bg-zinc-800/80 transition-colors shrink-0 cursor-pointer"
             >
               {openedCode ? (
                 <Check className="w-3.5 h-3.5 text-sky-400" />
@@ -122,7 +151,7 @@ export const Topbar: React.FC<TopbarProps> = ({
             <button
               onClick={handleOpenInExplorer}
               title="Abrir pasta no Explorador de Arquivos"
-              className="p-1 rounded text-zinc-400 hover:text-amber-400 hover:bg-zinc-800/80 transition-colors"
+              className="p-1 rounded text-zinc-400 hover:text-amber-400 hover:bg-zinc-800/80 transition-colors shrink-0 cursor-pointer"
             >
               {openedExplorer ? (
                 <Check className="w-3.5 h-3.5 text-amber-400" />
@@ -134,15 +163,15 @@ export const Topbar: React.FC<TopbarProps> = ({
         )}
       </div>
 
-      {/* 2. Status Badges & Ações Globais */}
-      <div className="flex items-center gap-2.5">
+      {/* 2. Status Badges & Ações Globais (shrink-0 para não quebrar ou colidir) */}
+      <div className="flex items-center gap-2 shrink-0">
         {/* Seletor Rápido do Motor de Execução */}
         <button
           onClick={onOpenCliManager}
           title="Clique para alternar o motor (OpenCode / Antigravity CLI) e modelo padrão"
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium bg-zinc-900/60 border border-zinc-800/80 hover:border-zinc-700 hover:bg-zinc-800/60 text-zinc-300 transition-colors cursor-pointer group"
+          className="flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-medium bg-zinc-900/60 border border-zinc-800/80 hover:border-zinc-700 hover:bg-zinc-800/60 text-zinc-300 transition-colors cursor-pointer group shrink-0"
         >
-          <span className="text-zinc-500 text-[10px] uppercase font-semibold tracking-wider hidden sm:inline">
+          <span className="text-zinc-500 text-[10px] uppercase font-semibold tracking-wider hidden lg:inline">
             Motor
           </span>
           <RunnerBadge
@@ -162,7 +191,7 @@ export const Topbar: React.FC<TopbarProps> = ({
               ? `Fila Builder: Executando tarefa com ${waitingCount} aguardando (serialização FIFO para evitar conflitos de gravação em disco)`
               : 'Fila Builder: Livre para novas tarefas de escrita (tarefas Scout rodam em paralelo; Builder roda 1 por vez)'
           }
-          className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-medium border transition-colors ${
+          className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-medium border transition-colors shrink-0 ${
             isBuilderBusy
               ? 'bg-amber-500/10 border-amber-500/30 text-amber-300'
               : 'bg-zinc-900/60 border-zinc-800/80 text-zinc-400'
@@ -178,48 +207,46 @@ export const Topbar: React.FC<TopbarProps> = ({
               <span className="inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
             )}
           </span>
-          <span className="text-zinc-500 text-[10px] uppercase font-semibold tracking-wider">
+          <span className="text-zinc-500 text-[10px] uppercase font-semibold tracking-wider hidden sm:inline">
             Builder
           </span>
-          <span className={isBuilderBusy ? 'text-amber-300 font-medium' : 'text-zinc-300'}>
+          <span className={`hidden md:inline ${isBuilderBusy ? 'text-amber-300 font-medium' : 'text-zinc-300'}`}>
             {isBuilderBusy ? (waitingCount > 0 ? `${waitingCount} na fila` : 'Ativo') : 'Livre'}
           </span>
         </div>
 
-        {/* Status do Servidor MCP — Clicável */}
+        {/* Status do Servidor MCP — Apenas nomenclatura e bolinha de disponibilidade */}
         <button
           onClick={onOpenMcpModal}
-          title="Clique para ver detalhes das ferramentas ativas do servidor MCP do AgentC"
-          className="flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-medium bg-zinc-900/60 border border-zinc-800/80 hover:border-zinc-700 hover:bg-zinc-800/60 text-zinc-300 transition-colors cursor-pointer group"
+          title="Servidor MCP do AgentC ativo (8 ferramentas). Clique para ver detalhes."
+          className="flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-medium bg-zinc-900/60 border border-zinc-800/80 hover:border-zinc-700 hover:bg-zinc-800/60 text-zinc-300 transition-colors cursor-pointer group shrink-0"
         >
           <Cpu className="w-3.5 h-3.5 text-zinc-400 group-hover:text-indigo-400 transition-colors shrink-0" />
-          <span className="text-zinc-500 text-[10px] uppercase font-semibold tracking-wider">
+          <span className="text-zinc-300 text-[11px] font-semibold tracking-wide">
             MCP
           </span>
-          <span className="flex items-center gap-1 text-zinc-300 font-mono text-[11px]">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-            8 tools
-          </span>
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
         </button>
 
         {/* Botão de Atualizar Board */}
         <button
           onClick={onRefresh}
           title="Atualizar Kanban e sincronizar disco"
-          className="p-1.5 rounded-md border border-zinc-800/80 bg-zinc-900/60 hover:bg-zinc-800 hover:border-zinc-700 text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer"
+          className="p-1.5 rounded-md border border-zinc-800/80 bg-zinc-900/60 hover:bg-zinc-800 hover:border-zinc-700 text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer shrink-0"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-emerald-400' : ''}`} />
         </button>
 
-        {/* Botão Nova Tarefa */}
+        {/* Botão Nova Tarefa — Resumido em telas menores, apenas o ícone + */}
         <button
           onClick={onOpenNewTaskModal}
           disabled={!project}
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed shadow-[0_1px_2px_rgba(0,0,0,0.3)] border border-emerald-500/20 transition-all cursor-pointer"
+          title="Nova Tarefa (Ctrl+N)"
+          className="flex items-center justify-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-md text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed shadow-[0_1px_2px_rgba(0,0,0,0.3)] border border-emerald-500/20 transition-all cursor-pointer shrink-0"
         >
           <Plus className="w-3.5 h-3.5 shrink-0" />
-          <span>Nova Tarefa</span>
-          <kbd className="hidden sm:inline-block px-1 py-0.2 text-[9px] font-mono rounded bg-emerald-700/60 text-emerald-100 border border-emerald-500/20">
+          <span className="hidden sm:inline">Nova Tarefa</span>
+          <kbd className="hidden lg:inline-block px-1 py-0.2 text-[9px] font-mono rounded bg-emerald-700/60 text-emerald-100 border border-emerald-500/20">
             Ctrl+N
           </kbd>
         </button>

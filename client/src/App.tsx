@@ -52,6 +52,19 @@ export function App() {
   const [projectToHide, setProjectToHide] = useState<Project | null>(null);
   const [projectToDeletePermanent, setProjectToDeletePermanent] = useState<Project | null>(null);
   const [isHiddenProjectsModalOpen, setIsHiddenProjectsModalOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('agentc_sidebar_collapsed') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('agentc_sidebar_collapsed', String(isSidebarCollapsed));
+    } catch {}
+  }, [isSidebarCollapsed]);
 
   // Toast de Notificações e Desfazer
   const [toastMessage, setToastMessage] = useState<{
@@ -303,10 +316,13 @@ export function App() {
     }
   }, [boardData, selectedTask?.id, allBoardTasks]);
 
-  // Atalho global Ctrl+N para nova tarefa
+  // Atalhos globais: Ctrl+B para colapsar/descolapsar sidebar, Ctrl+N para nova tarefa
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'n') {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
+        e.preventDefault();
+        setIsSidebarCollapsed((prev) => !prev);
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'n') {
         e.preventDefault();
         if (activeProject) {
           setIsNewTaskModalOpen(true);
@@ -380,7 +396,7 @@ export function App() {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-[#09090b] text-[#f4f4f5]">
-      {/* 1. Sidebar Fixa (260px) */}
+      {/* 1. Sidebar Colapsável (260px / 0px via Ctrl+B) */}
       <Sidebar
         projects={projects}
         hiddenProjects={hiddenProjects}
@@ -390,8 +406,9 @@ export function App() {
         onRequestHideProject={handleRequestHideProject}
         onOpenHiddenProjectsModal={() => setIsHiddenProjectsModalOpen(true)}
         onOpenConnectModal={() => setIsMcpModalOpen(true)}
+        isCollapsed={isSidebarCollapsed}
+        onToggleCollapse={() => setIsSidebarCollapsed((prev) => !prev)}
       />
-
 
       {/* 2. Área Principal */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
@@ -407,6 +424,8 @@ export function App() {
           onRefresh={handleRefresh}
           isRefreshing={boardLoading}
           onToast={(text) => showToast({ text })}
+          isSidebarCollapsed={isSidebarCollapsed}
+          onToggleSidebar={() => setIsSidebarCollapsed((prev) => !prev)}
         />
 
         {/* Barra de Filtros Personalizados do Kanban */}
