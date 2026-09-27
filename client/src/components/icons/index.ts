@@ -16,3 +16,13 @@ export type {
 export { VSCodeLogo } from './VSCodeLogo.js';
 export type { VSCodeLogoProps } from './VSCodeLogo.js';
 
+export { ClaudeLogo } from './ClaudeLogo.js';
+export type { ClaudeLogoProps } from './ClaudeLogo.js';
+
+export { CursorLogo } from './CursorLogo.js';
+export type { CursorLogoProps } from './CursorLogo.js';
+
+export { ClineKiloLogo } from './ClineKiloLogo.js';
+export type { ClineKiloLogoProps } from './ClineKiloLogo.js';
+
+

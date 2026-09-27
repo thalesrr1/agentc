@@ -1,5 +1,5 @@
 import React from 'react';
-import { FolderGit2, Plus, Terminal, EyeOff, Eye } from 'lucide-react';
+import { FolderGit2, Plus, Terminal, EyeOff, Eye, Plug } from 'lucide-react';
 import type { Project } from '../../types/index.js';
 
 interface SidebarProps {
@@ -10,7 +10,9 @@ interface SidebarProps {
   onOpenNewProjectModal: () => void;
   onRequestHideProject: (project: Project) => void;
   onOpenHiddenProjectsModal: () => void;
+  onOpenConnectModal?: () => void;
 }
+
 
 export const Sidebar: React.FC<SidebarProps> = ({
   projects,
@@ -20,7 +22,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenNewProjectModal,
   onRequestHideProject,
   onOpenHiddenProjectsModal,
+  onOpenConnectModal,
 }) => {
+
   return (
     <aside className="w-[260px] shrink-0 h-screen bg-[#18181b] border-r border-[#27272a] flex flex-col select-none">
       {/* Brand Header */}
@@ -130,6 +134,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </button>
         )}
 
+        {onOpenConnectModal && (
+          <button
+            onClick={onOpenConnectModal}
+            className="w-full flex items-center justify-between px-3 py-1.5 rounded-md text-xs font-medium text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60 border border-transparent hover:border-zinc-700/60 transition-colors cursor-pointer"
+            title="Conectar harnesses de IA (Antigravity, OpenCode, Claude Code) e instalar Skills/MCP"
+          >
+            <span className="flex items-center gap-2">
+              <Plug className="w-3.5 h-3.5 text-zinc-500" />
+              <span>Conectar Agentes</span>
+            </span>
+            <span className="text-[10px] font-mono text-zinc-500">Skills / MCP</span>
+          </button>
+        )}
+
         <button
           onClick={onOpenNewProjectModal}
           className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-md text-xs font-medium text-[#f4f4f5] bg-[#27272a] hover:bg-[#3f3f46] border border-[#3f3f46] transition-colors"
@@ -137,6 +155,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <Plus className="w-3.5 h-3.5 text-emerald-400" />
           Adicionar Projeto
         </button>
+
       </div>
     </aside>
   );

@@ -4,6 +4,13 @@ import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs';
 import { MCP_TOOLS_DEFINITIONS } from '../mcp/tools.js';
+import {
+  getHarnessStatus,
+  installHarness,
+  type HarnessType,
+  type InstallTarget,
+  type InstallScope,
+} from '../services/harnessInstaller.js';
 
 export const systemRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
   // POST /api/system/select-folder (abre diálogo nativo do Windows)
@@ -157,5 +164,54 @@ export const systemRoutes: FastifyPluginAsync = async (fastify: FastifyInstance)
       return reply.status(500).send({ error: 'Falha ao abrir explorador de arquivos', details: errorMsg });
     }
   });
+
+  // GET /api/system/harness-status (retorna o status de instalação de MCP e Skills por harness)
+  fastify.get<{ Querystring: { project_path?: string } }>('/harness-status', async (request, reply) => {
+    try {
+      const projectPath = request.query?.project_path;
+      const status = getHarnessStatus(projectPath);
+      return reply.send(status);
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      return reply.status(500).send({ error: 'Falha ao verificar status dos harnesses', details: errorMsg });
+    }
+  });
+
+  // POST /api/system/install-harness (instala MCP ou Skill no harness indicado)
+  fastify.post<{
+    Body: {
+      harness: HarnessType;
+      target: InstallTarget;
+      scope: InstallScope;
+      projectPath?: string;
+    };
+  }>('/install-harness', async (request, reply) => {
+    try {
+      const { harness, target, scope, projectPath } = request.body || {};
+      if (!harness || !['antigravity', 'opencode', 'claude', 'cursor', 'cline'].includes(harness)) {
+        return reply.status(400).send({ error: 'Harness inválido (antigravity | opencode | claude | cursor | cline)' });
+      }
+
+      if (!target || !['mcp', 'skill', 'both'].includes(target)) {
+        return reply.status(400).send({ error: 'Alvo de instalação inválido (mcp | skill | both)' });
+      }
+      if (!scope || !['project', 'global'].includes(scope)) {
+        return reply.status(400).send({ error: 'Escopo inválido (project | global)' });
+      }
+
+      const result = installHarness({
+        harness,
+        target,
+        scope,
+        projectPath,
+      });
+
+      return reply.send(result);
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      return reply.status(500).send({ error: 'Falha ao instalar integração com harness', details: errorMsg });
+    }
+  });
 };
+
 

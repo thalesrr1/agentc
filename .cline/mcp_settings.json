@@ -1,0 +1,28 @@
+{
+  "mcpServers": {
+    "agentc": {
+      "command": "node",
+      "args": [
+        "D:\\PROJETOS\\agentc\\server\\dist\\mcp\\cli.js"
+      ],
+      "env": {
+        "AGENTC_DB_PATH": "C:\\Users\\Administrator\\.agentc\\agentc.db"
+      },
+      "alwaysAllow": [
+        "agentc_list_projects",
+        "agentc_register_project",
+        "agentc_create_plan",
+        "agentc_get_board",
+        "agentc_start_task",
+        "agentc_get_task_outcome",
+        "agentc_update_task_status",
+        "agentc_cancel_task",
+        "agentc_start_feature",
+        "agentc_get_feature_status",
+        "agentc_pause_feature",
+        "agentc_resume_feature"
+      ],
+      "disabled": false
+    }
+  }
+}

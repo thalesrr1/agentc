@@ -21,6 +21,8 @@ interface FeaturePipelinesContainerProps {
   busyFeature: string | null;
   /** Erro global de pipeline (se houver) */
   error: string | null;
+  /** Callback para selecionar tarefa e abrir a gaveta de inspeção */
+  onSelectTask?: (task: Task) => void;
 }
 
 export const FeaturePipelinesContainer: React.FC<FeaturePipelinesContainerProps> = ({
@@ -34,35 +36,44 @@ export const FeaturePipelinesContainer: React.FC<FeaturePipelinesContainerProps>
   onResume,
   busyFeature,
   error,
+  onSelectTask,
 }) => {
   const isFeatureFiltered = selectedFeature !== 'all';
 
   const reconcileState = (
     rawState: FeaturePipelineState
-  ): { state: FeaturePipelineState; currentRunningTask: Task | null } => {
+  ): { state: FeaturePipelineState; currentRunningTask: Task | null; featureTasks: Task[] } => {
     if (!boardTasks || boardTasks.length === 0) {
-      return { state: rawState, currentRunningTask: null };
+      return { state: rawState, currentRunningTask: null, featureTasks: [] };
     }
 
-    const featLower = rawState.feature.trim().toLowerCase();
+    const normalizeFeat = (f: string) => f.replace(/^#/, '').trim().toLowerCase();
+    const featNorm = normalizeFeat(rawState.feature);
     const tasks = boardTasks.filter(
-      (t) => t.feature && t.feature.trim().toLowerCase() === featLower
+      (t) => t.feature && normalizeFeat(t.feature) === featNorm
     );
 
-    if (tasks.length === 0) {
-      return { state: rawState, currentRunningTask: null };
+    const sortedTasks = [...tasks].sort((a, b) => {
+      const orderA = typeof a.order_index === 'number' ? a.order_index : 9999;
+      const orderB = typeof b.order_index === 'number' ? b.order_index : 9999;
+      if (orderA !== orderB) return orderA - orderB;
+      return a.created_at.localeCompare(b.created_at);
+    });
+
+    if (sortedTasks.length === 0) {
+      return { state: rawState, currentRunningTask: null, featureTasks: [] };
     }
 
-    const doneTasks = tasks.filter((t) => t.status === 'done');
-    const runningTask = tasks.find((t) => t.status === 'running') ?? null;
-    const backlogTasks = tasks.filter((t) => t.status === 'backlog');
-    const errorTasks = tasks.filter((t) => t.status === 'error');
+    const doneTasks = sortedTasks.filter((t) => t.status === 'done');
+    const runningTask = sortedTasks.find((t) => t.status === 'running') ?? null;
+    const backlogTasks = sortedTasks.filter((t) => t.status === 'backlog');
+    const errorTasks = sortedTasks.filter((t) => t.status === 'error');
 
     // Se há tarefa running no board, o pipeline está running!
     let status = rawState.status;
     if (runningTask) {
       status = rawState.status === 'paused' ? 'paused' : 'running';
-    } else if (tasks.length > 0 && doneTasks.length === tasks.length) {
+    } else if (sortedTasks.length > 0 && doneTasks.length === sortedTasks.length) {
       status = 'completed';
     } else if (errorTasks.length > 0 && (rawState.status === 'failed' || rawState.status === 'idle')) {
       status = 'failed';
@@ -71,7 +82,7 @@ export const FeaturePipelinesContainer: React.FC<FeaturePipelinesContainerProps>
     }
 
     const completedCount = doneTasks.length;
-    const totalCount = tasks.length;
+    const totalCount = sortedTasks.length;
 
     const reconciled: FeaturePipelineState = {
       ...rawState,
@@ -83,7 +94,7 @@ export const FeaturePipelinesContainer: React.FC<FeaturePipelinesContainerProps>
       pending_task_ids: backlogTasks.map((t) => t.id),
     };
 
-    return { state: reconciled, currentRunningTask: runningTask };
+    return { state: reconciled, currentRunningTask: runningTask, featureTasks: sortedTasks };
   };
 
   // Identifica quais pipelines devem ser exibidos:
@@ -188,15 +199,16 @@ export const FeaturePipelinesContainer: React.FC<FeaturePipelinesContainerProps>
   }
 
   return (
-    <div className="flex flex-col border-b border-[#27272a] divide-y divide-[#27272a]/60 shadow-xs">
+    <div className="relative z-20 flex flex-col border-b border-[#27272a] divide-y divide-[#27272a]/60 shadow-xs">
       {pipelinesToRender.map(({ feature, state, isSelected }) => {
-        const { state: reconciledState, currentRunningTask } = reconcileState(state);
+        const { state: reconciledState, currentRunningTask, featureTasks } = reconcileState(state);
         return (
           <FeaturePipelineBar
             key={feature}
             feature={feature}
             state={reconciledState}
             currentRunningTask={currentRunningTask}
+            featureTasks={featureTasks}
             busy={busyFeature === feature}
             onStart={() => onStart(feature)}
             onPause={() => onPause(feature)}
@@ -205,6 +217,7 @@ export const FeaturePipelinesContainer: React.FC<FeaturePipelinesContainerProps>
             isSelected={isSelected}
             onSelectFeature={onSelectFeature}
             onClearFilter={onClearFilter}
+            onSelectTask={onSelectTask}
           />
         );
       })}

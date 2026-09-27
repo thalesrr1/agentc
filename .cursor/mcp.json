@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "agentc": {
+      "command": "node",
+      "args": [
+        "D:\\PROJETOS\\agentc\\server\\dist\\mcp\\cli.js"
+      ],
+      "env": {
+        "AGENTC_DB_PATH": "C:\\Users\\Administrator\\.agentc\\agentc.db"
+      }
+    }
+  }
+}

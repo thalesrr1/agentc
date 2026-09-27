@@ -9,7 +9,12 @@ import type {
   UpdateTaskDTO,
   McpToolsResponse,
   FeaturePipelineState,
+  HarnessStatusResponse,
+  HarnessType,
+  InstallTarget,
+  InstallScope,
 } from '../types/index.js';
+
 
 const API_BASE = '/api';
 
@@ -287,5 +292,23 @@ export const api = {
       body: JSON.stringify({ path }),
     });
   },
+
+  async getHarnessStatus(projectPath?: string): Promise<HarnessStatusResponse> {
+    const query = projectPath ? `?project_path=${encodeURIComponent(projectPath)}` : '';
+    return request(`/system/harness-status${query}`);
+  },
+
+  async installHarness(data: {
+    harness: HarnessType;
+    target: InstallTarget;
+    scope: InstallScope;
+    projectPath?: string;
+  }): Promise<{ success: boolean; message: string; details?: string[] }> {
+    return request('/system/install-harness', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
 };
+
 

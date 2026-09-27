@@ -389,7 +389,9 @@ export function App() {
         onOpenNewProjectModal={() => setIsNewProjectModalOpen(true)}
         onRequestHideProject={handleRequestHideProject}
         onOpenHiddenProjectsModal={() => setIsHiddenProjectsModalOpen(true)}
+        onOpenConnectModal={() => setIsMcpModalOpen(true)}
       />
+
 
       {/* 2. Área Principal */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
@@ -436,6 +438,7 @@ export function App() {
             onResume={handlePipelineResume}
             busyFeature={projectPipelines.busyFeature}
             error={projectPipelines.error}
+            onSelectTask={(task) => setSelectedTask(task)}
           />
         )}
 
@@ -514,7 +517,9 @@ export function App() {
       <McpToolsModal
         isOpen={isMcpModalOpen}
         onClose={() => setIsMcpModalOpen(false)}
+        project={activeProject}
       />
+
 
       <HideProjectModal
         isOpen={projectToHide !== null}

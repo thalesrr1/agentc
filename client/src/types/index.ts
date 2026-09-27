@@ -164,3 +164,30 @@ export interface McpToolsResponse {
   };
   tools: McpTool[];
 }
+
+export type HarnessType = 'antigravity' | 'opencode' | 'claude' | 'cursor' | 'cline';
+export type InstallTarget = 'mcp' | 'skill' | 'both';
+export type InstallScope = 'project' | 'global';
+
+export interface HarnessIntegrationInfo {
+  mcpInstalledGlobal: boolean;
+  mcpInstalledProject: boolean;
+  skillInstalledGlobal: boolean;
+  skillInstalledProject: boolean;
+  mcpConfigPath: string;
+  skillPath: string;
+}
+
+export interface HarnessStatusResponse {
+  antigravity: HarnessIntegrationInfo;
+  opencode: HarnessIntegrationInfo;
+  claude: HarnessIntegrationInfo;
+  cursor: HarnessIntegrationInfo;
+  cline: HarnessIntegrationInfo;
+  paths: {
+    mcpCliPath: string;
+    dbPath: string;
+  };
+}
+
+

@@ -1,0 +1,43 @@
+---
+name: agentc
+description: >-
+  Orchestrates features and tasks using AgentC Kanban and autonomous workers.
+  Activate whenever planning, breaking down tasks, delegating implementation, or managing project boards.
+---
+
+# AgentC Orchestration Protocol
+
+## Role
+Act as Tech Lead / Architect. Decompose problems into coherent, verifiable units, register them in AgentC, and delegate execution to operational subagents.
+
+> **Auto-Registration:** Passing `project_path` in any MCP tool auto-registers the repository transparently.
+
+## Task Modes
+- **Builder:** Code implementation and modification.
+- **Scout:** Read-only inspection, diagnostics, and architectural research. (AgentC enforces sandbox rollback if any files are modified).
+> **Runners & Models:** Do NOT specify `runner` or `model` when creating tasks unless the user explicitly demands it. AgentC automatically applies the CLI runner and model configured for the project.
+
+## Decomposition & Sequencing Guidelines
+- **Strict Chronological Chain:** The order of tasks in the plan defines execution sequence (`order_index: 0, 1, 2...`). Always sequence foundations first (schema/migrations/domain) before consumers (use-cases/APIs) and UI before end-to-end wiring.
+- **Verifiable Functional Units:** Avoid syntactic micro-steps (e.g., splitting route, service, and types of the same feature). Keep coherent workflows in the same card.
+- **Group by Feature:** Always assign the `feature` parameter to group related tasks.
+- **Refinements:** For corrections on an existing card, use `agentc_start_task` with `resume: true` and `feedback_prompt` instead of creating duplicate cards.
+
+## Autonomous Feature Pipeline Protocol
+When orchestrating a multi-task feature without human intervention between steps:
+1. **Plan & Sequence (`agentc_create_plan`):** Register tasks grouped by `feature`. Define a fast, deterministic `verify_command` per task whenever applicable (e.g. `"make test-changed"` or `"npx jest <path>"`).
+2. **Dispatch Decoupled Pipeline (`agentc_start_feature`):**
+   - Call `agentc_start_feature(wait: false)`. It returns immediately (`dispatched: true`), avoiding host LLM timeouts and token burn.
+   - Conclude your turn informing the user that the pipeline is running and point to the Kanban board.
+3. **Resilience & Execution Guarantees:**
+   - **Strict Concurrency Safety:** Tasks execute one at a time in `order_index` sequence. Starting or resuming a pipeline will NEVER launch parallel tasks for the same feature.
+   - **Safe Adoption & Session Recovery:** If a task of the feature is already in progress (or left running after a server restart), the pipeline adopts it and transparently resumes execution (`resume: true`).
+   - **Graceful Pause (`agentc_pause_feature`):** Pausing does not abort the running worker. The active task finishes cleanly and passes verification before the pipeline enters `paused`.
+   - **Circuit Breaker:** If a worker exits with error or `verify_command` fails, the pipeline halts (`failed`), skipping downstream tasks to protect the codebase. Inspect with `agentc_get_task_outcome` and iterate via `agentc_start_task(resume: true)`.
+4. **Monitor (`agentc_get_feature_status`):**
+   - Query feature status on demand without inspecting individual cards.
+
+## Efficiency & Token Preservation
+- **Zero Polling Loops:** NEVER run sleep loops or repeatedly query board/task status via MCP. Dispatched pipelines advance autonomously on the local engine.
+- **Single-Task Comfort Window:** `agentc_start_task(wait: true)` uses a safe local comfort window (120s). If the task requires more time, AgentC executes an automatic graceful handover returning `completed: false` without blocking.
+- **Contextual Diff Validation:** Do not act as a rigid path linter. Legitimate correlated integration side-effects (routes, component registries, shared types) are expected.
