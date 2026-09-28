@@ -13,14 +13,26 @@ const DEFAULT_CATALOG: Record<RunnerType, string[]> = {
     'minimax/MiniMax-M3',
   ],
   'antigravity-cli': [
-    'gemini-3.8 (high)',
-    'gemini-3.8 (medium)',
-    'gemini-3.7 (high)',
-    'gemini-3.7 (medium)',
+    'gemini-3.8-flash (high)',
+    'gemini-3.8-flash (medium)',
+    'gemini-3.8-flash (low)',
+    'gemini-3.7-flash (high)',
+    'gemini-3.7-flash (medium)',
+    'gemini-3.7-flash (low)',
   ],
 };
 
 const opencodeModelsCache = new Map<string, { timestamp: number; models: string[] }>();
+
+function normalizeAntigravityModel(m: string): string {
+  if (m === 'gemini-3.8 (high)') return 'gemini-3.8-flash (high)';
+  if (m === 'gemini-3.8 (medium)') return 'gemini-3.8-flash (medium)';
+  if (m === 'gemini-3.8 (low)') return 'gemini-3.8-flash (low)';
+  if (m === 'gemini-3.7 (high)') return 'gemini-3.7-flash (high)';
+  if (m === 'gemini-3.7 (medium)') return 'gemini-3.7-flash (medium)';
+  if (m === 'gemini-3.7 (low)') return 'gemini-3.7-flash (low)';
+  return m;
+}
 
 export const SettingsRepository = {
   getSetting(key: string): string | null {
@@ -56,6 +68,14 @@ export const SettingsRepository = {
           'gemini-2.5-pro',
           'gemini-3.8-flash',
           'gemini-3.7-flash',
+          'gemini-3.8 (high)',
+          'gemini-3.8 (medium)',
+          'gemini-3.8 (low)',
+          'gemini-3.7 (high)',
+          'gemini-3.7 (medium)',
+          'gemini-3.7 (low)',
+          'gemini-3.8',
+          'gemini-3.7',
         ];
 
         let opencodeList: string[] = Array.isArray(parsed.opencode)
@@ -71,17 +91,23 @@ export const SettingsRepository = {
           opencodeList.unshift('minimax/MiniMax-M3');
         }
 
-        // Garante que os 4 modelos canônicos do antigravity estão presentes
+        // Garante que os 6 modelos canônicos do antigravity estão presentes
         for (const defaultAgy of DEFAULT_CATALOG['antigravity-cli']) {
           if (!agyList.includes(defaultAgy)) {
             agyList.push(defaultAgy);
           }
         }
 
-        return {
+        const newCatalog = {
           opencode: opencodeList,
           'antigravity-cli': agyList,
         };
+
+        if (JSON.stringify(parsed) !== JSON.stringify(newCatalog)) {
+          this.setSetting('model_catalog', JSON.stringify(newCatalog));
+        }
+
+        return newCatalog;
       } catch {
         // fallback
       }
@@ -107,10 +133,12 @@ export const SettingsRepository = {
     // Modelos protegidos essenciais que não devem ser removidos
     const protectedModels = [
       'minimax/MiniMax-M3',
-      'gemini-3.8 (high)',
-      'gemini-3.8 (medium)',
-      'gemini-3.7 (high)',
-      'gemini-3.7 (medium)',
+      'gemini-3.8-flash (high)',
+      'gemini-3.8-flash (medium)',
+      'gemini-3.8-flash (low)',
+      'gemini-3.7-flash (high)',
+      'gemini-3.7-flash (medium)',
+      'gemini-3.7-flash (low)',
     ];
     if (protectedModels.includes(model)) {
       return list;
@@ -132,7 +160,7 @@ export const SettingsRepository = {
       if (project?.default_runner && project?.default_model) {
         return {
           runner: project.default_runner as RunnerType,
-          model: project.default_model,
+          model: normalizeAntigravityModel(project.default_model),
         };
       }
     }
@@ -142,8 +170,10 @@ export const SettingsRepository = {
     let model = this.getSetting('active_model');
 
     if (!model || model.includes('gemini-2.0') || model.includes('gemini-1.5')) {
-      model = runner === 'opencode' ? 'minimax/MiniMax-M3' : 'gemini-3.8 (high)';
+      model = runner === 'opencode' ? 'minimax/MiniMax-M3' : 'gemini-3.8-flash (high)';
     }
+
+    model = normalizeAntigravityModel(model);
 
     return { runner, model };
   },

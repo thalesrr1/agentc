@@ -54,10 +54,12 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
   const [catalog, setCatalog] = useState<Record<RunnerType, string[]>>({
     opencode: ['minimax/MiniMax-M3'],
     'antigravity-cli': [
-      'gemini-3.8 (high)',
-      'gemini-3.8 (medium)',
-      'gemini-3.7 (high)',
-      'gemini-3.7 (medium)',
+      'gemini-3.8-flash (high)',
+      'gemini-3.8-flash (medium)',
+      'gemini-3.8-flash (low)',
+      'gemini-3.7-flash (high)',
+      'gemini-3.7-flash (medium)',
+      'gemini-3.7-flash (low)',
     ],
   });
 
@@ -89,7 +91,13 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
               setModel(parsed.baseModel);
               if (parsed.effort !== 'default') setVariant(parsed.effort);
             } else {
-              setModel(res.active_model);
+              let m = res.active_model;
+              if (m.startsWith('gemini-3.8') && !m.startsWith('gemini-3.8-flash')) {
+                m = m.replace('gemini-3.8', 'gemini-3.8-flash');
+              } else if (m.startsWith('gemini-3.7') && !m.startsWith('gemini-3.7-flash')) {
+                m = m.replace('gemini-3.7', 'gemini-3.7-flash');
+              }
+              setModel(m);
             }
           }
         })
@@ -108,13 +116,29 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
       const baseModels = Array.from(new Set(list.map((m) => parseModelEffort(m).baseModel)));
       return baseModels.length > 0 ? baseModels : ['minimax/MiniMax-M3'];
     }
-    return list.length > 0 ? list : ['gemini-3.8 (high)', 'gemini-3.8 (medium)'];
+    return list.length > 0
+      ? list
+      : [
+          'gemini-3.8-flash (high)',
+          'gemini-3.8-flash (medium)',
+          'gemini-3.8-flash (low)',
+          'gemini-3.7-flash (high)',
+          'gemini-3.7-flash (medium)',
+          'gemini-3.7-flash (low)',
+        ];
   }, [catalog, runner]);
 
   // Garante que o modelo selecionado seja válido perante o catálogo do runner atual
   useEffect(() => {
     if (availableModels.length > 0 && !availableModels.includes(model)) {
-      setModel(availableModels[0]);
+      const migrated = model
+        .replace(/^gemini-3\.8(\s|$)/, 'gemini-3.8-flash$1')
+        .replace(/^gemini-3\.7(\s|$)/, 'gemini-3.7-flash$1');
+      if (availableModels.includes(migrated)) {
+        setModel(migrated);
+      } else {
+        setModel(availableModels[0]);
+      }
     }
   }, [availableModels, model]);
 
@@ -126,7 +150,7 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
       const baseModels = Array.from(new Set(list.map((m) => parseModelEffort(m).baseModel)));
       setModel(baseModels[0] || 'minimax/MiniMax-M3');
     } else {
-      setModel(list[0] || 'gemini-3.8 (high)');
+      setModel(list[0] || 'gemini-3.8-flash (high)');
     }
   };
 

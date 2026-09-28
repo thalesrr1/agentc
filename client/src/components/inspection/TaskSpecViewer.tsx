@@ -57,10 +57,12 @@ export const TaskSpecViewer: React.FC<TaskSpecViewerProps> = ({ task, onTaskUpda
   const [catalog, setCatalog] = useState<Record<RunnerType, string[]>>({
     opencode: ['minimax/MiniMax-M3'],
     'antigravity-cli': [
-      'gemini-3.8 (high)',
-      'gemini-3.8 (medium)',
-      'gemini-3.7 (high)',
-      'gemini-3.7 (medium)',
+      'gemini-3.8-flash (high)',
+      'gemini-3.8-flash (medium)',
+      'gemini-3.8-flash (low)',
+      'gemini-3.7-flash (high)',
+      'gemini-3.7-flash (medium)',
+      'gemini-3.7-flash (low)',
     ],
   });
 
@@ -84,13 +86,29 @@ export const TaskSpecViewer: React.FC<TaskSpecViewerProps> = ({ task, onTaskUpda
       const baseModels = Array.from(new Set(list.map((m) => parseModelEffort(m).baseModel)));
       return baseModels.length > 0 ? baseModels : ['minimax/MiniMax-M3'];
     }
-    return list.length > 0 ? list : ['gemini-3.8 (high)', 'gemini-3.8 (medium)'];
+    return list.length > 0
+      ? list
+      : [
+          'gemini-3.8-flash (high)',
+          'gemini-3.8-flash (medium)',
+          'gemini-3.8-flash (low)',
+          'gemini-3.7-flash (high)',
+          'gemini-3.7-flash (medium)',
+          'gemini-3.7-flash (low)',
+        ];
   }, [catalog, editRunner]);
 
   // Garante que o modelo editado seja válido perante o catálogo ativo
   useEffect(() => {
     if (availableModels.length > 0 && !availableModels.includes(editModel)) {
-      setEditModel(availableModels[0]);
+      const migrated = editModel
+        .replace(/^gemini-3\.8(\s|$)/, 'gemini-3.8-flash$1')
+        .replace(/^gemini-3\.7(\s|$)/, 'gemini-3.7-flash$1');
+      if (availableModels.includes(migrated)) {
+        setEditModel(migrated);
+      } else {
+        setEditModel(availableModels[0]);
+      }
     }
   }, [availableModels, editModel]);
 
@@ -136,7 +154,13 @@ export const TaskSpecViewer: React.FC<TaskSpecViewerProps> = ({ task, onTaskUpda
       setEditModel(parsedEffort.baseModel);
       setEditVariant(task.variant || (parsedEffort.effort !== 'default' ? parsedEffort.effort : ''));
     } else {
-      setEditModel(task.model);
+      let m = task.model;
+      if (m.startsWith('gemini-3.8') && !m.startsWith('gemini-3.8-flash')) {
+        m = m.replace('gemini-3.8', 'gemini-3.8-flash');
+      } else if (m.startsWith('gemini-3.7') && !m.startsWith('gemini-3.7-flash')) {
+        m = m.replace('gemini-3.7', 'gemini-3.7-flash');
+      }
+      setEditModel(m);
       setEditVariant(task.variant || '');
     }
 
@@ -170,7 +194,13 @@ export const TaskSpecViewer: React.FC<TaskSpecViewerProps> = ({ task, onTaskUpda
       setEditModel(parsedEffort.baseModel);
       setEditVariant(task.variant || (parsedEffort.effort !== 'default' ? parsedEffort.effort : ''));
     } else {
-      setEditModel(task.model);
+      let m = task.model;
+      if (m.startsWith('gemini-3.8') && !m.startsWith('gemini-3.8-flash')) {
+        m = m.replace('gemini-3.8', 'gemini-3.8-flash');
+      } else if (m.startsWith('gemini-3.7') && !m.startsWith('gemini-3.7-flash')) {
+        m = m.replace('gemini-3.7', 'gemini-3.7-flash');
+      }
+      setEditModel(m);
       setEditVariant(task.variant || '');
     }
 
@@ -366,7 +396,7 @@ export const TaskSpecViewer: React.FC<TaskSpecViewerProps> = ({ task, onTaskUpda
                         const baseModels = Array.from(new Set(nextList.map((m) => parseModelEffort(m).baseModel)));
                         setEditModel(baseModels[0] || 'minimax/MiniMax-M3');
                       } else {
-                        setEditModel(nextList[0] || 'gemini-3.8 (high)');
+                        setEditModel(nextList[0] || 'gemini-3.8-flash (high)');
                       }
                     }}
                     className="w-full px-2.5 py-1.5 rounded bg-[#161b22] border border-[#30363d] focus:border-emerald-500 focus:outline-none text-[#c9d1d9] text-xs cursor-pointer"

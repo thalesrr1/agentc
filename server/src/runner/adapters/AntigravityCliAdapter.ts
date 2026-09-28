@@ -13,6 +13,12 @@ import { eventBus } from '../../events/eventBus.js';
 /**
  * Normaliza qualquer especificação de modelo do AgentC para um model ID válido da CLI do Antigravity (`agy`).
  * Suporta formatos:
+ * - 'gemini-3.8-flash (high)' -> 'gemini-3.8-flash-high'
+ * - 'gemini-3.8-flash (medium)' -> 'gemini-3.8-flash-medium'
+ * - 'gemini-3.8-flash (low)' -> 'gemini-3.8-flash-low'
+ * - 'gemini-3.7-flash (high)' -> 'gemini-3.7-flash-high'
+ * - 'gemini-3.7-flash (medium)' -> 'gemini-3.7-flash-medium'
+ * - 'gemini-3.7-flash (low)' -> 'gemini-3.7-flash-low'
  * - 'gemini-3.8 (high)' -> 'gemini-3.8-flash-high'
  * - 'gemini-3.8 (medium)' -> 'gemini-3.8-flash-medium'
  * - 'gemini-3.8 (low)' -> 'gemini-3.8-flash-low'
@@ -138,11 +144,11 @@ export const AntigravityCliAdapter: RunnerAdapter = {
       if (config.resume && config.feedbackPrompt) {
         promptText = config.feedbackPrompt.trim();
         if (config.mode === 'Scout') {
-          promptText = `[MODO SCOUT / SOMENTE LEITURA - NÃO MODIFIQUE ARQUIVOS] ${promptText}`;
+          promptText = `[MODO SCOUT / SOMENTE LEITURA] [NÃO MODIFIQUE ARQUIVOS] ${promptText}`;
         }
       } else {
         if (config.mode === 'Scout') {
-          promptText = `[MODO SCOUT / SOMENTE LEITURA - NÃO MODIFIQUE ARQUIVOS] Execute o diagnóstico e pesquisa especificados no arquivo "${normalizedTaskPath}". Leia o arquivo atentamente com suas ferramentas e gere o relatório estritamente no caminho de report.md indicado.`;
+          promptText = `[MODO SCOUT / SOMENTE LEITURA] [NÃO MODIFIQUE ARQUIVOS] Execute o diagnóstico e pesquisa especificados no arquivo "${normalizedTaskPath}". Leia o arquivo atentamente com suas ferramentas e gere o relatório estritamente no caminho de report.md indicado.`;
         } else {
           promptText = `Execute integralmente a tarefa especificada no arquivo "${normalizedTaskPath}". Leia o arquivo atentamente com suas ferramentas, cumpra todos os objetivos, critérios de aceite e persista a entrega final no caminho de report.md indicado.`;
         }

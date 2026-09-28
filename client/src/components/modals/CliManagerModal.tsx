@@ -72,10 +72,12 @@ export const CliManagerModal: React.FC<CliManagerModalProps> = ({
   const [catalog, setCatalog] = useState<Record<RunnerType, string[]>>({
     opencode: ['minimax/MiniMax-M3'],
     'antigravity-cli': [
-      'gemini-3.8 (high)',
-      'gemini-3.8 (medium)',
-      'gemini-3.7 (high)',
-      'gemini-3.7 (medium)',
+      'gemini-3.8-flash (high)',
+      'gemini-3.8-flash (medium)',
+      'gemini-3.8-flash (low)',
+      'gemini-3.7-flash (high)',
+      'gemini-3.7-flash (medium)',
+      'gemini-3.7-flash (low)',
     ],
   });
 
@@ -95,8 +97,8 @@ export const CliManagerModal: React.FC<CliManagerModalProps> = ({
   // Estados locais de esforço de raciocínio por modelo
   const [openCodeEfforts, setOpenCodeEfforts] = useState<Record<string, OpenCodeEffort>>({});
   const [antigravityEfforts, setAntigravityEfforts] = useState<Record<string, AntigravityEffort>>({
-    'gemini-3.8': 'high',
-    'gemini-3.7': 'high',
+    'gemini-3.8-flash': 'high',
+    'gemini-3.7-flash': 'high',
   });
 
   const loadSettings = async () => {
@@ -117,8 +119,10 @@ export const CliManagerModal: React.FC<CliManagerModalProps> = ({
       } else if (data.active_runner === 'antigravity-cli') {
         const effortVal: AntigravityEffort =
           parsed.effort === 'medium' ? 'medium' : parsed.effort === 'low' ? 'low' : 'high';
+        const normBase = parsed.baseModel.includes('3.8') ? 'gemini-3.8-flash' : 'gemini-3.7-flash';
         setAntigravityEfforts((prev) => ({
           ...prev,
+          [normBase]: effortVal,
           [parsed.baseModel]: effortVal,
         }));
       }
@@ -207,7 +211,7 @@ export const CliManagerModal: React.FC<CliManagerModalProps> = ({
 
   // Seleciona versão do Antigravity com esforço específico
   const handleSelectAntigravityVersion = async (
-    version: 'gemini-3.8' | 'gemini-3.7',
+    version: 'gemini-3.8-flash' | 'gemini-3.7-flash',
     effort: AntigravityEffort = 'high'
   ) => {
     setAntigravityEfforts((prev) => ({ ...prev, [version]: effort }));
@@ -243,7 +247,7 @@ export const CliManagerModal: React.FC<CliManagerModalProps> = ({
       }));
       const currentParsed = parseModelEffort(activeModel);
       if (currentParsed.baseModel === modelName) {
-        const fallback = runner === 'opencode' ? 'minimax/MiniMax-M3' : 'gemini-3.8 (high)';
+        const fallback = runner === 'opencode' ? 'minimax/MiniMax-M3' : 'gemini-3.8-flash (high)';
         await handleSelectEngine(runner, fallback);
       }
     } catch (err) {
@@ -698,8 +702,8 @@ export const CliManagerModal: React.FC<CliManagerModalProps> = ({
                   disabled={isSaving}
                   onClick={() =>
                     handleSelectAntigravityVersion(
-                      'gemini-3.8',
-                      antigravityEfforts['gemini-3.8'] || 'high'
+                      'gemini-3.8-flash',
+                      antigravityEfforts['gemini-3.8-flash'] || 'high'
                     )
                   }
                   className="px-3 py-1.5 rounded-md text-xs font-medium text-blue-300 bg-blue-950/80 hover:bg-blue-900 border border-blue-800 transition-colors"
@@ -711,10 +715,11 @@ export const CliManagerModal: React.FC<CliManagerModalProps> = ({
 
             {/* Grid de Modelos Padronizados do Antigravity */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {/* CARD 1: Gemini 3.8 */}
+              {/* CARD 1: Gemini 3.8 Flash */}
               {(() => {
                 const is38Active =
-                  activeRunner === 'antigravity-cli' && activeParsed.baseModel === 'gemini-3.8';
+                  activeRunner === 'antigravity-cli' &&
+                  (activeParsed.baseModel === 'gemini-3.8-flash' || activeParsed.baseModel === 'gemini-3.8');
                 const effort38: AntigravityEffort =
                   is38Active
                     ? activeParsed.effort === 'medium'
@@ -722,7 +727,7 @@ export const CliManagerModal: React.FC<CliManagerModalProps> = ({
                       : activeParsed.effort === 'low'
                       ? 'low'
                       : 'high'
-                    : antigravityEfforts['gemini-3.8'] || 'high';
+                    : antigravityEfforts['gemini-3.8-flash'] || antigravityEfforts['gemini-3.8'] || 'high';
 
                 return (
                   <div
@@ -735,12 +740,12 @@ export const CliManagerModal: React.FC<CliManagerModalProps> = ({
                     <div className="flex items-start justify-between gap-2 mb-2">
                       <button
                         type="button"
-                        onClick={() => handleSelectAntigravityVersion('gemini-3.8', effort38)}
+                        onClick={() => handleSelectAntigravityVersion('gemini-3.8-flash', effort38)}
                         className="text-left group flex-1 min-w-0"
                       >
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="font-semibold text-xs text-[#f4f4f5] group-hover:text-blue-300 transition-colors">
-                            Gemini 3.8
+                            Gemini 3.8 Flash
                           </span>
                           <span className="text-[9px] px-1.5 py-0.5 bg-[#18181b] text-[#a1a1aa] rounded border border-[#27272a]">
                             Google DeepMind
@@ -766,7 +771,7 @@ export const CliManagerModal: React.FC<CliManagerModalProps> = ({
                       <div className="inline-flex rounded-md p-0.5 bg-[#18181b] border border-[#27272a]">
                         <button
                           type="button"
-                          onClick={() => handleSelectAntigravityVersion('gemini-3.8', 'high')}
+                          onClick={() => handleSelectAntigravityVersion('gemini-3.8-flash', 'high')}
                           className={`px-2.5 py-1 rounded text-[10px] font-semibold transition-all ${
                             effort38 === 'high'
                               ? is38Active
@@ -779,7 +784,7 @@ export const CliManagerModal: React.FC<CliManagerModalProps> = ({
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleSelectAntigravityVersion('gemini-3.8', 'medium')}
+                          onClick={() => handleSelectAntigravityVersion('gemini-3.8-flash', 'medium')}
                           className={`px-2.5 py-1 rounded text-[10px] font-semibold transition-all ${
                             effort38 === 'medium'
                               ? is38Active
@@ -792,7 +797,7 @@ export const CliManagerModal: React.FC<CliManagerModalProps> = ({
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleSelectAntigravityVersion('gemini-3.8', 'low')}
+                          onClick={() => handleSelectAntigravityVersion('gemini-3.8-flash', 'low')}
                           className={`px-2.5 py-1 rounded text-[10px] font-semibold transition-all ${
                             effort38 === 'low'
                               ? is38Active
@@ -809,10 +814,11 @@ export const CliManagerModal: React.FC<CliManagerModalProps> = ({
                 );
               })()}
 
-              {/* CARD 2: Gemini 3.7 */}
+              {/* CARD 2: Gemini 3.7 Flash */}
               {(() => {
                 const is37Active =
-                  activeRunner === 'antigravity-cli' && activeParsed.baseModel === 'gemini-3.7';
+                  activeRunner === 'antigravity-cli' &&
+                  (activeParsed.baseModel === 'gemini-3.7-flash' || activeParsed.baseModel === 'gemini-3.7');
                 const effort37: AntigravityEffort =
                   is37Active
                     ? activeParsed.effort === 'medium'
@@ -820,7 +826,7 @@ export const CliManagerModal: React.FC<CliManagerModalProps> = ({
                       : activeParsed.effort === 'low'
                       ? 'low'
                       : 'high'
-                    : antigravityEfforts['gemini-3.7'] || 'high';
+                    : antigravityEfforts['gemini-3.7-flash'] || antigravityEfforts['gemini-3.7'] || 'high';
 
                 return (
                   <div
@@ -833,12 +839,12 @@ export const CliManagerModal: React.FC<CliManagerModalProps> = ({
                     <div className="flex items-start justify-between gap-2 mb-2">
                       <button
                         type="button"
-                        onClick={() => handleSelectAntigravityVersion('gemini-3.7', effort37)}
+                        onClick={() => handleSelectAntigravityVersion('gemini-3.7-flash', effort37)}
                         className="text-left group flex-1 min-w-0"
                       >
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="font-semibold text-xs text-[#f4f4f5] group-hover:text-blue-300 transition-colors">
-                            Gemini 3.7
+                            Gemini 3.7 Flash
                           </span>
                           <span className="text-[9px] px-1.5 py-0.5 bg-[#18181b] text-[#a1a1aa] rounded border border-[#27272a]">
                             Google DeepMind
@@ -864,7 +870,7 @@ export const CliManagerModal: React.FC<CliManagerModalProps> = ({
                       <div className="inline-flex rounded-md p-0.5 bg-[#18181b] border border-[#27272a]">
                         <button
                           type="button"
-                          onClick={() => handleSelectAntigravityVersion('gemini-3.7', 'high')}
+                          onClick={() => handleSelectAntigravityVersion('gemini-3.7-flash', 'high')}
                           className={`px-2.5 py-1 rounded text-[10px] font-semibold transition-all ${
                             effort37 === 'high'
                               ? is37Active
@@ -877,7 +883,7 @@ export const CliManagerModal: React.FC<CliManagerModalProps> = ({
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleSelectAntigravityVersion('gemini-3.7', 'medium')}
+                          onClick={() => handleSelectAntigravityVersion('gemini-3.7-flash', 'medium')}
                           className={`px-2.5 py-1 rounded text-[10px] font-semibold transition-all ${
                             effort37 === 'medium'
                               ? is37Active
@@ -890,7 +896,7 @@ export const CliManagerModal: React.FC<CliManagerModalProps> = ({
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleSelectAntigravityVersion('gemini-3.7', 'low')}
+                          onClick={() => handleSelectAntigravityVersion('gemini-3.7-flash', 'low')}
                           className={`px-2.5 py-1 rounded text-[10px] font-semibold transition-all ${
                             effort37 === 'low'
                               ? is37Active

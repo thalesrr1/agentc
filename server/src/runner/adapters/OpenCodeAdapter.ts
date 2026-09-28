@@ -79,13 +79,13 @@ export const OpenCodeAdapter: RunnerAdapter = {
       if (config.resume && config.feedbackPrompt) {
         promptText = config.feedbackPrompt.trim();
         if (config.mode === 'Scout') {
-          promptText = `[MODO SCOUT / SOMENTE LEITURA - NÃO MODIFIQUE ARQUIVOS] ${promptText}`;
+          promptText = `[MODO SCOUT / SOMENTE LEITURA] [NÃO MODIFIQUE ARQUIVOS] ${promptText}`;
         }
       } else {
         // Na execução inicial, passa instrução limpa e unilineada apontando para o task.md
         // Previne que o cmd.exe do Windows quebre argumentos multiline no primeiro '\n'
         if (config.mode === 'Scout') {
-          promptText = `[MODO SCOUT / SOMENTE LEITURA - NÃO MODIFIQUE ARQUIVOS] Execute o diagnóstico e pesquisa especificados no arquivo "${normalizedTaskPath}". Leia o arquivo atentamente com suas ferramentas e gere o relatório estritamente no caminho de report.md indicado.`;
+          promptText = `[MODO SCOUT / SOMENTE LEITURA] [NÃO MODIFIQUE ARQUIVOS] Execute o diagnóstico e pesquisa especificados no arquivo "${normalizedTaskPath}". Leia o arquivo atentamente com suas ferramentas e gere o relatório estritamente no caminho de report.md indicado.`;
         } else {
           promptText = `Execute integralmente a tarefa especificada no arquivo "${normalizedTaskPath}". Leia o arquivo atentamente com suas ferramentas, cumpra todos os objetivos, critérios de aceite e persista a entrega final no caminho de report.md indicado.`;
         }
