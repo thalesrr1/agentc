@@ -1,4 +1,5 @@
 import { ChildProcess, execFile } from 'node:child_process';
+import fs from 'node:fs';
 import os from 'node:os';
 
 type ChunkListener = (data: string) => void;
@@ -12,6 +13,151 @@ interface ActiveProcess {
 
 const activeProcesses = new Map<string, ActiveProcess>();
 
+/**
+ * Lê o arquivo `/proc/<pid>/task/<tid>/children` e devolve os PIDs filhos diretos.
+ * Retorna `null` quando o arquivo/processo não pode ser lido (já morreu, sem permissão, etc.).
+ */
+function readProcChildren(pid: number): number[] | null {
+  try {
+    const taskDir = `/proc/${pid}/task`;
+    const entries = fs.readdirSync(taskDir);
+    const tids = entries.filter((entry) => /^\d+$/.test(entry));
+    if (tids.length === 0) {
+      return [];
+    }
+    const mainTid = tids.find((entry) => Number(entry) === pid) ?? tids[0];
+    if (mainTid === undefined) {
+      return [];
+    }
+    const raw = fs.readFileSync(`${taskDir}/${mainTid}/children`, 'utf8').trim();
+    if (!raw) {
+      return [];
+    }
+    const result: number[] = [];
+    for (const token of raw.split(/\s+/)) {
+      if (!token) continue;
+      const child = Number(token);
+      if (Number.isFinite(child) && child > 0) {
+        result.push(child);
+      }
+    }
+    return result;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Percorre recursivamente a árvore de processos a partir de `rootPid` via `/proc`
+ * e empilha os PIDs descendentes em pós-ordem (folhas primeiro, por último o root).
+ * Quando `/proc` não está disponível para um dado ramo, encerra esse ramo silenciosamente.
+ */
+function collectPostOrderDescendants(rootPid: number, out: number[]): void {
+  const children = readProcChildren(rootPid);
+  if (children === null) {
+    return;
+  }
+  for (const child of children) {
+    collectPostOrderDescendants(child, out);
+    out.push(child);
+  }
+}
+
+/**
+ * Encerra a árvore de processos no Linux usando `/proc` para descobrir
+ * recursivamente todos os descendentes, matando-os em pós-ordem com SIGKILL.
+ * Se `/proc` não estiver acessível (root em namespace restrito, etc.),
+ * recai para `process.kill(pid, 'SIGKILL')`.
+ */
+function killLinuxTree(pid: number): Promise<void> {
+  return new Promise((resolve) => {
+    const descendants: number[] = [];
+    collectPostOrderDescendants(pid, descendants);
+
+    if (descendants.length === 0 && !fs.existsSync(`/proc/${pid}`)) {
+      try {
+        process.kill(pid, 'SIGKILL');
+      } catch {
+        // ignora — processo pode já ter morrido
+      }
+      resolve();
+      return;
+    }
+
+    for (const childPid of descendants) {
+      try {
+        process.kill(childPid, 'SIGKILL');
+      } catch {
+        // ignora — ESRCH significa que o processo já morreu
+      }
+    }
+
+    try {
+      process.kill(pid, 'SIGKILL');
+    } catch {
+      // ignora
+    }
+
+    resolve();
+  });
+}
+
+/**
+ * Encerra a árvore em sistemas POSIX não-Linux (macOS, BSD, etc.).
+ * Tenta primeiro o atalho `process.kill(-pid)` (process group, quando detached),
+ * depois cai no PID puro. Como último recurso, usa `pkill -P` em laço
+ * para eliminar descendentes diretos quando o binário estiver disponível.
+ */
+function killGenericPosixTree(pid: number): Promise<void> {
+  return new Promise((resolve) => {
+    try {
+      process.kill(-pid, 'SIGKILL');
+      resolve();
+      return;
+    } catch {
+      // processo não está em grupo detached — segue para o fallback
+    }
+
+    try {
+      process.kill(pid, 'SIGKILL');
+    } catch {
+      // ignora
+    }
+
+    // Fallback adicional: usa `pkill -P <pid>` repetidamente para varrer
+    // descendentes diretos. Não é exaustivo como `/proc`, mas cobre
+    // processos comuns. `pkill` retorna exit code 1 quando não há matches,
+    // o que é tratado como término da recursão.
+    const pkillChildren = (currentPid: number): void => {
+      execFile(
+        'pkill',
+        ['-9', '-P', currentPid.toString()],
+        (error) => {
+          if (error) {
+            resolve();
+            return;
+          }
+          // houve matches — tenta novamente uma vez para capturar netos órfãos
+          execFile('pkill', ['-9', '-P', currentPid.toString()], () => {
+            try {
+              process.kill(currentPid, 'SIGKILL');
+            } catch {
+              // ignora
+            }
+            resolve();
+          });
+        }
+      );
+    };
+
+    try {
+      pkillChildren(pid);
+    } catch {
+      resolve();
+    }
+  });
+}
+
 function killProcessTree(pid: number): Promise<void> {
   return new Promise((resolve) => {
     if (os.platform() === 'win32') {
@@ -21,18 +167,15 @@ function killProcessTree(pid: number): Promise<void> {
         { windowsHide: true },
         () => resolve()
       );
-    } else {
-      try {
-        process.kill(-pid, 'SIGKILL');
-      } catch {
-        try {
-          process.kill(pid, 'SIGKILL');
-        } catch {
-          // ignora
-        }
-      }
-      resolve();
+      return;
     }
+
+    if (os.platform() === 'linux') {
+      killLinuxTree(pid).then(resolve).catch(resolve);
+      return;
+    }
+
+    killGenericPosixTree(pid).then(resolve).catch(resolve);
   });
 }
 

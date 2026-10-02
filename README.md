@@ -224,6 +224,32 @@ Para que o AgentC rode sem nenhuma janela de terminal aberta:
 
 ---
 
+## 🐧 Execução no Linux (compatibilidade POSIX)
+
+O AgentC também é suportado em distribuições Linux (Ubuntu, Debian, Fedora, Arch, etc.) através do launcher POSIX **`iniciar-agentc.sh`**, equivalente portável do `iniciar-agentc.bat`. O arquivo utiliza terminações de linha **LF** e é compatível com `/bin/sh` e `/bin/bash`.
+
+### Pré-requisitos
+- **Node.js** `>= 20.0.0` e **npm** `>= 10.0.0`
+- **Git** disponível no `PATH`
+- **Build tools para `better-sqlite3`** (necessárias para o `npm install` compilar o módulo nativo):
+  - Debian/Ubuntu: `sudo apt-get install -y build-essential python3 make g++ libsqlite3-dev`
+  - Fedora/RHEL: `sudo dnf groupinstall "Development Tools" && sudo dnf install -y python3 sqlite-devel`
+  - Arch: `sudo pacman -S --needed base-devel python sqlite`
+- **xdg-open** (opcional) — presente por padrão nos principais desktops Linux; usado pelo launcher para auto-abrir o navegador.
+
+### Inicialização
+```bash
+git clone <url-do-repositorio> agentc
+cd agentc
+npm install
+chmod +x ./iniciar-agentc.sh
+./iniciar-agentc.sh
+```
+
+O script fará `cd` para o diretório do projeto, agendará em segundo plano a abertura de `http://localhost:5173` (após 2 segundos, via `xdg-open`/`open`) e executará `npm run dev` (Fastify em `:3000` + Vite em `:5173`). Use `Ctrl+C` no terminal para encerrar os serviços.
+
+---
+
 ## 🤖 Integração com Orquestradores (MCP)
 
 O AgentC possui um servidor MCP nativo via `stdio` pronto para se conectar às suas IDEs e ferramentas de IA favoritas.

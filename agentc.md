@@ -76,3 +76,63 @@ D:\PROJETOS\agentc/
 - **Isolamento de Adapters:** Novos executores de subagentes devem implementar a interface `RunnerAdapter` sem poluir as rotas REST ou ferramentas MCP com regras específicas de cada CLI.
 - **Tratamento de Processos no SO:** No Windows, garanta encerramento limpo da árvore de processos (evitando processos zumbis do OpenCode ou CLIs externas no background).
 - **Sem Modificação Destrutiva no Git:** O AgentC apenas lê telemetria passiva (`status`, `diff --stat`, `diff HEAD -- <files>`). Ele nunca executa `commit`, `push`, `rebase` ou `checkout` sem ação humana explícita.
+
+---
+
+## 6. Execução no Linux (compatibilidade POSIX)
+
+Distribuições Linux (Ubuntu, Debian, Fedora, Arch, etc.) são oficialmente suportadas através do script **`iniciar-agentc.sh`**, equivalente portável do `iniciar-agentc.bat` do Windows. O arquivo é gravado com terminações de linha **LF** e é compatível com qualquer shell POSIX (`/bin/sh` ou `/bin/bash`).
+
+### 6.1 Requisitos de Ambiente
+- **Node.js** `>= 20.0.0` (recomenda-se LTS mais recente) e **npm** `>= 10.0.0`.
+- **Git** instalado e disponível no `PATH` (necessário para o cálculo de diff cirúrgico e reconciliação com o disco).
+- **Build tools para `better-sqlite3`:** o backend utiliza `better-sqlite3`, que é compilado nativamente via `node-gyp` durante o `npm install`. Em Debian/Ubuntu instale com:
+  ```bash
+  sudo apt-get update
+  sudo apt-get install -y build-essential python3 make g++ libsqlite3-dev
+  ```
+  Em Fedora/RHEL:
+  ```bash
+  sudo dnf groupinstall "Development Tools" && sudo dnf install -y python3 sqlite-devel
+  ```
+  Em Arch Linux:
+  ```bash
+  sudo pacman -S --needed base-devel python sqlite
+  ```
+- **Abridor de URL** (opcional, apenas para auto-abrir o navegador): `xdg-open` (presente na maioria dos desktops Linux). Em macOS o script detecta `open` automaticamente como fallback POSIX-compatível.
+
+### 6.2 Instalação
+```bash
+git clone <url-do-repositorio> agentc
+cd agentc
+npm install
+```
+
+### 6.3 Inicialização Rápida
+Conceda permissão de execução ao launcher e dispare-o (o script fará `cd` até o diretório do projeto, abrirá `http://localhost:5173` em segundo plano após 2 segundos via `xdg-open`/`open` e executará `npm run dev`):
+
+```bash
+chmod +x ./iniciar-agentc.sh
+./iniciar-agentc.sh
+```
+
+Se o `xdg-open` não estiver disponível, abra manualmente **`http://localhost:5173`** no navegador após o frontend subir.
+
+### 6.4 Comandos Manuais (equivalentes)
+Caso prefira não usar o launcher, todos os comandos npm são portáveis:
+
+```bash
+npm run dev          # Backend Fastify (:3000) + Frontend Vite (:5173) concorrentes
+npm run build        # Build de produção do server e do client
+npm run dev:server   # Apenas backend com live-reload (tsx watch)
+npm run dev:client   # Apenas frontend via Vite
+npm run build:server # Compila o backend e sincroniza o schema SQLite
+npm run build:client # Compila e empacota o frontend React
+npm run mcp          # Inicia o servidor MCP via stdio
+```
+
+### 6.5 Observações Importantes
+- **Finalização:** use `Ctrl+C` no terminal onde o script foi disparado para encerrar o `concurrently` e todos os processos filhos do Fastify/Vite.
+- **Caminhos:** o script resolve `SCRIPT_DIR` com `CDPATH= cd -- "$(dirname -- "$0")" && pwd`, funcionando corretamente a partir de qualquer diretório de invocação e em links simbólicos.
+- **Robustez do launcher:** o script usa `set -u` e trata o `cd` com fallback (`|| exit 1`), impedindo execução em diretório inválido.
+- **Sem regressão no Windows:** os arquivos `iniciar-agentc.bat`, `AgentC.exe`, `launcher.cs` e a pasta `service/` permanecem intactos e são a forma canônica de inicialização no Windows.

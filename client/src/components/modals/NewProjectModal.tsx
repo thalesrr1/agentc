@@ -20,12 +20,14 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
   const [isBrowsing, setIsBrowsing] = useState(false);
   const [quickFolders, setQuickFolders] = useState<Array<{ name: string; path: string }>>([]);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
       setName('');
       setPathValue('');
       setError(null);
+      setInfo(null);
       // Carrega sugestões de pastas locais
       api.getQuickFolders()
         .then((folders) => setQuickFolders(folders))
@@ -38,13 +40,18 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
   const handleBrowseFolder = async () => {
     setIsBrowsing(true);
     setError(null);
+    setInfo(null);
     try {
-      const selected = await api.selectFolder();
-      if (selected) {
-        setPathValue(selected.path);
+      const result = await api.selectFolder();
+      if (result.ok) {
+        setPathValue(result.path);
         if (!name.trim()) {
-          setName(selected.name);
+          setName(result.name);
         }
+      } else if (result.headless) {
+        setInfo(
+          'O seletor nativo não está disponível neste ambiente. Preencha ou cole o caminho da pasta do projeto diretamente no campo acima.'
+        );
       }
     } catch (err: unknown) {
       setError(`Não foi possível abrir o seletor: ${String(err)}`);
@@ -118,7 +125,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
             />
           </div>
 
-          {/* Caminho do Repositório com Botão de Procurar */}
+{/* Caminho do Repositório com Botão de Procurar */}
           <div>
             <label className="block text-[#a1a1aa] font-medium mb-1">
               Caminho Absoluto do Repositório:
@@ -129,14 +136,14 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                 required
                 value={pathValue}
                 onChange={(e) => setPathValue(e.target.value)}
-                placeholder="Ex: D:\UPThink ou D:\PROJETOS\crmUp"
+                placeholder={'Ex: /home/usuario/projetos/crm ou D:\\PROJETOS\\crm'}
                 className="flex-1 px-3 py-2 rounded-md bg-[#09090b] border border-[#27272a] focus:border-emerald-500 focus:outline-none text-[#f4f4f5] font-mono text-[11px]"
               />
               <button
                 type="button"
                 onClick={handleBrowseFolder}
                 disabled={isBrowsing}
-                title="Abrir janela nativa do Windows para escolher a pasta"
+                title="Abrir o gerenciador de arquivos nativo para escolher a pasta do projeto"
                 className="flex items-center gap-1.5 px-3 py-2 rounded-md bg-[#27272a] hover:bg-[#3f3f46] text-[#f4f4f5] border border-[#3f3f46] transition-colors shrink-0 disabled:opacity-50 font-medium"
               >
                 {isBrowsing ? (
@@ -148,8 +155,13 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
               </button>
             </div>
             <span className="text-[11px] text-[#71717a] mt-1 block">
-              Clique em <strong>Procurar...</strong> para selecionar a pasta no Windows Explorer.
+              Clique em <strong>Procurar...</strong> para selecionar a pasta no gerenciador de arquivos do sistema, ou digite/cole o caminho absoluto acima.
             </span>
+            {info && (
+              <div className="mt-2 p-2 rounded bg-amber-950/40 border border-amber-800/60 text-amber-200">
+                {info}
+              </div>
+            )}
           </div>
 
           {/* Sugestões Rápidas de Diretórios Locais */}

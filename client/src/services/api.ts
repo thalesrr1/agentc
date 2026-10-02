@@ -205,15 +205,27 @@ export const api = {
     );
   },
 
-  async selectFolder(): Promise<{ path: string; name: string } | null> {
-    const res = await request<{ success: boolean; path?: string; name?: string; cancelled?: boolean }>(
-      '/system/select-folder',
-      { method: 'POST' }
-    );
+  async selectFolder(): Promise<
+    | { ok: true; path: string; name: string }
+    | { ok: false; cancelled: boolean; headless: boolean; message: string }
+  > {
+    const res = await request<{
+      success: boolean;
+      path?: string;
+      name?: string;
+      cancelled?: boolean;
+      headless?: boolean;
+      message?: string;
+    }>('/system/select-folder', { method: 'POST' });
     if (res.success && res.path && res.name) {
-      return { path: res.path, name: res.name };
+      return { ok: true, path: res.path, name: res.name };
     }
-    return null;
+    return {
+      ok: false,
+      cancelled: !!res.cancelled,
+      headless: !!res.headless,
+      message: res.message || '',
+    };
   },
 
   async getQuickFolders(): Promise<Array<{ name: string; path: string }>> {
